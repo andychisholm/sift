@@ -1,0 +1,44 @@
+#!/bin/bash
+set -e
+
+SPARK_URL="http://apache.mirror.digitalpacific.com.au/spark/spark-1.5.0/spark-1.5.0-bin-hadoop2.6.tgz"
+
+if [ -z "$SPARK_HOME" ]; then
+    echo "SPARK_HOME is unset, using local Spark deployment..."
+    if [ ! -d "spark" ]; then
+        read -p "Would you like to download spark and run in standalone mode? " -n 1 -r
+        if [[ ! $REPLY =~ ^[Yy]$ ]]
+        then
+            exit 1
+        fi
+        echo
+        echo "Downloading spark for local standalone deployment..."
+        mkdir spark
+        curl $SPARK_URL | tar zx -C spark --strip-components=1
+        
+        echo "Updating spark logger config..."
+        pushd spark/conf > /dev/null
+        sed -e 's/log4j.rootCategory=INFO/log4j.rootCategory=WARN/' log4j.properties.template > log4j.properties
+        popd > /dev/null
+    fi
+    export SPARK_HOME=$(pwd)/spark
+    if [ -z "$SPARK_MASTER" ]; then
+        SPARK_MASTER=local[*]
+    fi
+fi
+
+export PYSPARK_PYTHON=$(pwd)/ve/bin/python
+SPARK_MASTER_SW=
+if [ ! -z "$SPARK_MASTER" ]; then
+    SPARK_MASTER_SW="--master $SPARK_MASTER"
+fi
+
+$SPARK_HOME/bin/spark-submit \
+    $SPARK_MASTER_SW \
+    --driver-memory 8g \
+    --executor-memory 8g \
+    --py-files sift/models/__init__.py \
+    --py-files sift/models/links.py \
+    --py-files sift/models/text.py \
+    sift/__main__.py \
+    "$@"
