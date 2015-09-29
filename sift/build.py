@@ -16,8 +16,7 @@ MODELS = [
     links.EntityCounts,
     links.EntityNameCounts,
     text.TermIndicies,
-    text.TermDocumentFrequencies,
-    text.EntityContextTermFrequencies
+    text.TermDocumentFrequencies
 ]
 
 class BuildModel(object):
