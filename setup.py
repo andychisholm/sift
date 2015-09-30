@@ -23,7 +23,8 @@ setup(
         'Topic :: Text Processing :: Linguistic'
     ],
     install_requires = [
-        "ujson"
+        "ujson",
+        "pattern"
     ],
     test_suite = __pkg_name__ + '.test'
 )

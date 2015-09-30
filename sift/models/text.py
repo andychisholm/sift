@@ -1,16 +1,18 @@
 import ujson as json
-
-from . import Model
 from operator import add
 from collections import Counter
 
-class TermDocumentFrequencies(Model):
-    """ Get document frequencies for terms in a corpus """
+from sift.models import Model
+from sift.util import ngrams
+
+class TermFrequencies(Model):
+    """ Get term frequencies over a corpus """
     def build(self, corpus):
         return corpus\
-            .map(lambda d: d['text'].lower().split())\
-            .flatMap(lambda tokens: ((t, 1) for t in set(tokens)))\
-            .reduceByKey(add)
+            .flatMap(lambda d: ngrams(d['text']))\
+            .map(lambda t: (t, 1))\
+            .reduceByKey(add)\
+            .filter(lambda (k,v): v > 1)
 
     def format(self, model):
         return model\
@@ -24,6 +26,15 @@ class TermDocumentFrequencies(Model):
     def add_arguments(cls, p):
         p.set_defaults(modelcls=cls)
         return p
+
+class TermDocumentFrequencies(TermFrequencies):
+    """ Get document frequencies for terms in a corpus """
+    def build(self, corpus):
+        return corpus\
+            .flatMap(lambda d: set(ngrams(d['text'])))\
+            .map(lambda t: (t, 1))\
+            .reduceByKey(add)\
+            .filter(lambda (k,v): v > 1)
 
 class TermIndicies(TermDocumentFrequencies):
     """ Generate uniqe indexes for termed based on their document frequency ranking. """

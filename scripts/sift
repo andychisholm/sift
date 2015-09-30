@@ -37,8 +37,5 @@ $SPARK_HOME/bin/spark-submit \
     $SPARK_MASTER_SW \
     --driver-memory 8g \
     --executor-memory 8g \
-    --py-files sift/models/__init__.py \
-    --py-files sift/models/links.py \
-    --py-files sift/models/text.py \
     sift/__main__.py \
     "$@"

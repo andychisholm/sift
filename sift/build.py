@@ -16,6 +16,7 @@ MODELS = [
     links.EntityCounts,
     links.EntityNameCounts,
     text.TermIndicies,
+    text.TermFrequencies,
     text.TermDocumentFrequencies
 ]
 
