@@ -1,8 +1,10 @@
 import ujson as json
 
-from . import Model
 from operator import add
 from collections import Counter
+
+from sift.models import Model
+from sift.util import trim_link_subsection, trim_link_protocol
 
 class EntityNameCounts(Model):
     """ Entity counts by name """
@@ -16,7 +18,7 @@ class EntityNameCounts(Model):
             .flatMap(self.iter_link_anchor_target_pairs)\
             .map(lambda (a,t): (a.strip().lower(), t))\
             .filter(lambda (a, t): a)\
-            .mapValues(self.trim_subsection_link)\
+            .mapValues(self.trim_link_subsection)\
             .mapValues(self.trim_link_protocol)\
             .groupByKey()\
             .mapValues(Counter)
@@ -29,8 +31,7 @@ class EntityNameCounts(Model):
                     'target': target,
                     'count': count
                 } for target, count in counts.iteritems()]
-            })\
-            .map(json.dumps)
+            })
 
     @classmethod
     def add_arguments(cls, p):
@@ -43,7 +44,7 @@ class EntityCounts(Model):
         return corpus\
             .flatMap(lambda d: d['links'])\
             .map(lambda l: l['target'])\
-            .map(self.trim_subsection_link)\
+            .map(self.trim_link_subsection)\
             .map(self.trim_link_protocol)\
             .map(lambda l: (l, 1))\
             .reduceByKey(add)\
@@ -54,8 +55,7 @@ class EntityCounts(Model):
             .map(lambda (target, count): {
                 '_id': target,
                 'count': count
-            })\
-            .map(json.dumps)
+            })
 
     @classmethod
     def add_arguments(cls, p):
