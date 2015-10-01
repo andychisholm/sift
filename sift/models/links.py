@@ -18,8 +18,8 @@ class EntityNameCounts(Model):
             .flatMap(self.iter_link_anchor_target_pairs)\
             .map(lambda (a,t): (a.strip().lower(), t))\
             .filter(lambda (a, t): a)\
-            .mapValues(self.trim_link_subsection)\
-            .mapValues(self.trim_link_protocol)\
+            .mapValues(trim_link_subsection)\
+            .mapValues(trim_link_protocol)\
             .groupByKey()\
             .mapValues(Counter)
 
@@ -44,8 +44,8 @@ class EntityCounts(Model):
         return corpus\
             .flatMap(lambda d: d['links'])\
             .map(lambda l: l['target'])\
-            .map(self.trim_link_subsection)\
-            .map(self.trim_link_protocol)\
+            .map(trim_link_subsection)\
+            .map(trim_link_protocol)\
             .map(lambda l: (l, 1))\
             .reduceByKey(add)\
             .filter(lambda (t, c): c > threshold)
