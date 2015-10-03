@@ -15,6 +15,7 @@ log = logging.getLogger()
 MODELS = [
     links.EntityCounts,
     links.EntityNameCounts,
+    links.EntityComentions,
     text.TermIndicies,
     text.TermFrequencies,
     text.TermDocumentFrequencies,
