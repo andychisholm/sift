@@ -6,6 +6,9 @@ from collections import Counter
 from sift.models import Model
 from sift.util import trim_link_subsection, trim_link_protocol
 
+import logging
+log = logging.getLogger()
+
 class EntityCounts(Model):
     """ Inlink counts """
     def build(self, corpus, threshold=1):
@@ -18,17 +21,12 @@ class EntityCounts(Model):
             .reduceByKey(add)\
             .filter(lambda (t, c): c > threshold)
 
-    def format(self, model):
+    def format_items(self, model):
         return model\
             .map(lambda (target, count): {
                 '_id': target,
                 'count': count
             })
-
-    @classmethod
-    def add_arguments(cls, p):
-        p.set_defaults(modelcls=cls)
-        return p
 
 class EntityNameCounts(Model):
     """ Entity counts by name """
@@ -47,7 +45,7 @@ class EntityNameCounts(Model):
             .groupByKey()\
             .mapValues(Counter)
 
-    def format(self, model):
+    def format_items(self, model):
         return model\
             .map(lambda (anchor, counts): {
                 '_id': anchor,
@@ -56,11 +54,6 @@ class EntityNameCounts(Model):
                     'count': count
                 } for target, count in counts.iteritems()]
             })
-
-    @classmethod
-    def add_arguments(cls, p):
-        p.set_defaults(modelcls=cls)
-        return p
 
 class EntityComentions(Model):
     """ Comention counts """
@@ -74,14 +67,9 @@ class EntityComentions(Model):
             .flatMap(lambda d: iter_comentions(d['links']))\
             .reduceByKey(add)
 
-    def format(self, model):
+    def format_items(self, model):
         return model\
             .map(lambda (target, comentions): {
                 '_id': target,
                 'comentions': dict(comentions)
             })
-
-    @classmethod
-    def add_arguments(cls, p):
-        p.set_defaults(modelcls=cls)
-        return p

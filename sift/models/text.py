@@ -15,17 +15,12 @@ class TermFrequencies(Model):
             .reduceByKey(add)\
             .filter(lambda (k,v): v > 1)
 
-    def format(self, model):
+    def format_items(self, model):
         return model\
             .map(lambda (term, count): {
                 '_id': term,
                 'count': count,
             })
-
-    @classmethod
-    def add_arguments(cls, p):
-        p.set_defaults(modelcls=cls)
-        return p
 
 class TermDocumentFrequencies(TermFrequencies):
     """ Get document frequencies for terms in a corpus """
@@ -60,17 +55,12 @@ class EntityMentions(Model):
             .groupByKey()\
             .mapValues(list)
 
-    def format(self, model):
+    def format_items(self, model):
         return model\
             .map(lambda (link, mentions): {
                 '_id': link,
                 'mentions': mentions,
             })
-
-    @classmethod
-    def add_arguments(cls, p):
-        p.set_defaults(modelcls=cls)
-        return p
 
 class EntityMentionTermFrequency(Model):
     """ Get aggregated sentence context around links in a corpus """
@@ -79,7 +69,7 @@ class EntityMentionTermFrequency(Model):
             .build(corpus)\
             .mapValues(lambda mentions: Counter(t for m in mentions for t in ngrams(m)))
 
-    def format(self, model):
+    def format_items(self, model):
         return model\
             .map(lambda (link, counts): {
                 '_id': link,

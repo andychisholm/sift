@@ -29,12 +29,10 @@ class BuildModel(object):
         self.corpus_path = kwargs.pop('corpus_path')
         self.output_path = kwargs.pop('output_path')
         self.sample = kwargs.pop('sample')
-        self.fmt = kwargs.pop('format')
         self.sort = False
 
         modelcls = kwargs.pop('modelcls')
         model_args = {p:kwargs[p] for p in modelcls.__init__.__code__.co_varnames if p in kwargs}
-        
         self.model_name = re.sub('([A-Z])', r' \1', modelcls.__name__).strip()
 
         log.info("Building %s...", self.model_name)
@@ -51,11 +49,6 @@ class BuildModel(object):
         m = self.model.build(corpus)
         m = self.model.format(m)
 
-        if self.fmt == 'redis':
-            m = self.format_redis(m)
-        else:
-            m = m.map(json.dumps)
-
         if self.sample > 0:
             if self.sort:
                 m = m.map(lambda (k,v): (v,k)).sortByKey(False)
@@ -69,24 +62,11 @@ class BuildModel(object):
 
         log.info('Done.')
 
-    def format_redis(self, model, namespace=None):
-        cmd = '\r\n'.join(["*3", "$3", "SET", "${}", "{}", "${}", "{}"])+'\r'
-
-        if namespace == None:
-            namespace = ''
-        else:
-            namespace += ':'
-
-        return model\
-            .map(lambda i: ((namespace+i['_id'].replace('"','\\"')).encode('utf-8'), json.dumps(i)))\
-            .map(lambda (t, c): cmd.format(len(t), t, len(c), c))
-
     @classmethod
     def add_arguments(cls, p):
         p.add_argument('corpus_path', metavar='CORPUS_PATH')
         p.add_argument('--save', dest='output_path', required=False, default=None, metavar='OUTPUT_PATH')
         p.add_argument('--sample', dest='sample', required=False, default=0, type=int, metavar='N')
-        p.add_argument('--format', choices=['json','redis'], required=False, default='json', metavar='FORMAT')
         p.set_defaults(cls=cls)
 
         sp = p.add_subparsers()
@@ -99,4 +79,5 @@ class BuildModel(object):
                                 description=desc,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
             modelcls.add_arguments(csp)
+
         return p

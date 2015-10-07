@@ -22,18 +22,37 @@ wkdl latest
 wkjs process-dump latest wikidocs
 ```
 
-Extract link counts over this corpus:
+Extract link counts over this corpus, saving records under the 'counts' directory as compressed json.
 ```bash
-sift build-model wikidocs --save counts EntityCounts
+sift build-model wikidocs --save counts EntityCounts json
 ```
 
-Quick inspection of json formatted output:
+### Json Output
+
+The json record format allows for easy inspection of model output:
 ```bash
 zcat -r counts/*.gz | grep -E '/Apple_Inc."' | python -m json.tool
-# {
-#     "_id": "en.wikipedia.org/wiki/Apple_Inc.",
-#     "count": 6379
-# }
+```
+
+Result:
+```javascript
+{
+    "_id": "en.wikipedia.org/wiki/Apple_Inc.",
+    "count": 6379
+}
+```
+
+### Bulk Import
+This format also allows for easy bulk import of results into mongo:
+```
+zcat -r counts/*.gz | mongoimport --db models --collection counts
+```
+
+__sift__ also supports the generation of redis protcol via the `redis` format flag.
+
+This allows for very fast bulk inserts via redis-cli:
+```bash
+zcat -r counts/*.gz | redis-cli --pipe
 ```
 
 ## Spark
