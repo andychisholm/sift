@@ -55,6 +55,24 @@ class EntityNameCounts(Model):
                 } for target, count in counts.iteritems()]
             })
 
+class EntityInlinks(Model):
+    """ Comention counts """
+    def build(self, corpus):
+        return corpus\
+            .flatMap(lambda d: ((d['title'], l) for l in set(l['target'] for l in d['links'])))\
+            .mapValues(trim_link_subsection)\
+            .mapValues(trim_link_protocol)\
+            .map(lambda (k, v): (v, k))\
+            .groupByKey()\
+            .mapValues(list)
+
+    def format_items(self, model):
+        return model\
+            .map(lambda (target, inlinks): {
+                '_id': target,
+                'inlinks': inlinks
+            })
+
 class EntityComentions(Model):
     """ Comention counts """
     def build(self, corpus):
