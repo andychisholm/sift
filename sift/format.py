@@ -11,6 +11,27 @@ class ModelFormat(object):
         yield JsonFormat
         yield RedisFormat
 
+class TsvFormat(ModelFormat):
+    """ Format model output as tab separated values """
+    @staticmethod
+    def items_to_tsv(items):
+        key_order = None
+        for item in items:
+            if key_order == None:
+                key_order = []
+                if '_id' in item:
+                    key_order.append('_id')
+                key_order += sorted(k for k in item.iterkeys() if k != '_id')
+            yield '\t'.join(str(item[k]) for k in key_order)
+
+    def __call__(self, model):
+        return model.mapPartitions(self.items_to_tsv)
+
+    @classmethod
+    def add_arguments(cls, p):
+        p.set_defaults(fmtcls=cls)
+        return p
+
 class JsonFormat(ModelFormat):
     """ Format model output as json """
     def __call__(self, model):
