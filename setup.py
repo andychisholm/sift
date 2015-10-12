@@ -24,6 +24,7 @@ setup(
     ],
     install_requires = [
         "ujson",
+        "numpy",
         "pattern"
     ],
     test_suite = __pkg_name__ + '.test'
