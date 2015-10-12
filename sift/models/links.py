@@ -33,16 +33,13 @@ class EntityNameCounts(Model):
     @staticmethod
     def iter_link_anchor_target_pairs(doc):
         for link in doc['links']:
-            yield doc['text'][link['start']:link['stop']], link['target']
-
-    @staticmethod
-    def normalize_anchor(anchor):
-        return anchor.strip().lower()
+            anchor = doc['text'][link['start']:link['stop']]
+            anchor = anchor.strip().lower()
+            yield anchor, link['target']
 
     def build(self, corpus):
         return corpus\
             .flatMap(self.iter_link_anchor_target_pairs)\
-            .map(lambda (a,t): (self.normalize_anchor(a), t))\
             .filter(lambda (a, t): a)\
             .mapValues(trim_link_subsection)\
             .mapValues(trim_link_protocol)\
