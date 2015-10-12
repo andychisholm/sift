@@ -34,11 +34,15 @@ class EntityNameCounts(Model):
     def iter_link_anchor_target_pairs(doc):
         for link in doc['links']:
             yield doc['text'][link['start']:link['stop']], link['target']
-    
+
+    @staticmethod
+    def normalize_anchor(anchor):
+        return anchor.strip().lower()
+
     def build(self, corpus):
         return corpus\
             .flatMap(self.iter_link_anchor_target_pairs)\
-            .map(lambda (a,t): (a.strip().lower(), t))\
+            .map(lambda (a,t): (self.normalize_anchor(a), t))\
             .filter(lambda (a, t): a)\
             .mapValues(trim_link_subsection)\
             .mapValues(trim_link_protocol)\
@@ -52,7 +56,8 @@ class EntityNameCounts(Model):
                 'counts': [{
                     'target': target,
                     'count': count
-                } for target, count in counts.iteritems()]
+                } for target, count in counts.iteritems()],
+                'total': sum(counts.itervalues())
             })
 
 class EntityInlinks(Model):
