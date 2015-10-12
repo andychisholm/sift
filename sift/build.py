@@ -33,11 +33,10 @@ class BuildModel(object):
         self.sort = False
 
         modelcls = kwargs.pop('modelcls')
-        model_args = {p:kwargs[p] for p in modelcls.__init__.__code__.co_varnames if p in kwargs}
         self.model_name = re.sub('([A-Z])', r' \1', modelcls.__name__).strip()
 
         log.info("Building %s...", self.model_name)
-        self.model = modelcls(**model_args)
+        self.model = modelcls(**kwargs)
 
     def __call__(self):
         log.info('Processing corpus: %s ...', self.corpus_path)

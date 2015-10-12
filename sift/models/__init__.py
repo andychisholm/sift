@@ -11,7 +11,7 @@ class Model(object):
     def build(self, corpus):
         raise NotImplementedError
 
-    def format_item(self, *args, **kwargs):
+    def format_items(self, *args, **kwargs):
         raise NotImplementedError
 
     def format(self, model):
