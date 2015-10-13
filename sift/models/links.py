@@ -50,10 +50,7 @@ class EntityNameCounts(Model):
         return model\
             .map(lambda (anchor, counts): {
                 '_id': anchor,
-                'counts': [{
-                    'target': target,
-                    'count': count
-                } for target, count in counts.iteritems()],
+                'counts': dict(counts),
                 'total': sum(counts.itervalues())
             })
 
