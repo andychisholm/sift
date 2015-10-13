@@ -78,6 +78,46 @@ class TermIndicies(TermDocumentFrequencies):
             .zipWithIndex()\
             .map(lambda ((df, t), idx): (t, (df, idx)))
 
+class TermIdfs(Model):
+    """ Compute tf-idf weighted token counts over sentence contexts around links in a corpus """
+    def __init__(self, **kwargs):
+        self.max_ngram = kwargs.pop('max_ngram')
+        self.min_rank = kwargs.pop('min_rank')
+        self.max_rank = kwargs.pop('max_rank')
+        super(TermIdfs, self).__init__(**kwargs)
+
+    def build(self, corpus):
+        N = float(corpus.count())
+
+        # locals needed to keep spark happy
+        max_ngram = self.max_ngram
+        min_rank = self.min_rank
+        max_rank = self.max_rank
+
+        return TermIndicies()\
+            .build(corpus)\
+            .filter(lambda (token, (df, rank)): rank >= min_rank and rank < max_rank)\
+            .map(lambda (token, (df, rank)): (token, df))\
+            .mapValues(lambda df: math.log(N/df))
+
+    def format_items(self, model):
+        return model\
+            .map(lambda (term, idf): {
+                '_id': term,
+                'idf': idf,
+            })
+
+    @classmethod
+    def add_model_arguments(cls, p):
+        p.add_argument('--max-ngram', dest='max_ngram', required=False, default=2, type=int, metavar='MAX_NGRAM')
+        p.add_argument('--min-rank', dest='min_rank', required=False, default=50, type=int, metavar='MIN_RANK')
+        p.add_argument('--max-rank', dest='max_rank', required=False, default=int(1e6), type=int, metavar='MAX_RANK')
+
+    @classmethod
+    def add_arguments(cls, p):
+        cls.add_model_arguments(p)
+        return super(TermIdfs, cls).add_arguments(p)
+
 class EntityMentionTermFrequency(Model):
     """ Compute tf-idf weighted token counts over sentence contexts around links in a corpus """
     def __init__(self, **kwargs):
@@ -88,19 +128,11 @@ class EntityMentionTermFrequency(Model):
         super(EntityMentionTermFrequency, self).__init__(**kwargs)
 
     def build(self, corpus):
-        N = float(corpus.count())
-
-        # locals needed to keep spark happy
-        max_ngram = self.max_ngram
-        min_rank = self.min_rank
-        max_rank = self.max_rank
-
         log.info('Building tf-idf model: N=%i, ngrams=%i, df-range=(%i, %i), norm=%s', N, self.max_ngram, self.min_rank, self.max_rank, str(self.normalize))
-        idfs = TermIndicies()\
-            .build(corpus)\
-            .filter(lambda (token, (df, rank)): rank >= min_rank and rank < max_rank)\
-            .map(lambda (token, (df, rank)): (token, df))\
-            .mapValues(lambda df: math.log(N/df))
+        idfs = TermIdfs(
+            max_ngram=self.max_ngram,
+            min_rank=self.min_rank,
+            max_rank=self.max_rank)
 
         m = corpus\
             .flatMap(EntityMentions.iter_mentions)\
@@ -110,7 +142,7 @@ class EntityMentionTermFrequency(Model):
             .map(lambda ((target, token), count): (token, (target, count)))\
             .leftOuterJoin(idfs)\
             .filter(lambda (token, ((target, count), idf)): idf != None)\
-            .map(lambda (token, ((target, count), idf)): (target, (token, round(math.sqrt(count)*idf, 3))))\
+            .map(lambda (token, ((target, count), idf)): (target, (token, math.sqrt(count)*idf)))\
             .groupByKey()
 
         return m.mapValues(self.normalize_counts if self.normalize else list)
@@ -129,9 +161,7 @@ class EntityMentionTermFrequency(Model):
 
     @classmethod
     def add_arguments(cls, p):
-        p.add_argument('--max-ngram', dest='max_ngram', required=False, default=2, type=int, metavar='MAX_NGRAM')
-        p.add_argument('--min-rank', dest='min_rank', required=False, default=50, type=int, metavar='MIN_RANK')
-        p.add_argument('--max-rank', dest='max_rank', required=False, default=int(1e6), type=int, metavar='MAX_RANK')
+        TermIdfs.add_model_arguments(p)
         p.add_argument('--skip-norm', dest='normalize', action='store_false')
         p.set_defaults(normalize=True)
         return super(EntityMentionTermFrequency, cls).add_arguments(p)
