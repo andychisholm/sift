@@ -67,6 +67,7 @@ class BuildModel(object):
         p.add_argument('corpus_path', metavar='CORPUS_PATH')
         p.add_argument('--save', dest='output_path', required=False, default=None, metavar='OUTPUT_PATH')
         p.add_argument('--sample', dest='sample', required=False, default=0, type=int, metavar='N')
+        p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
         p.set_defaults(cls=cls)
 
         sp = p.add_subparsers()

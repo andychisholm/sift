@@ -30,11 +30,15 @@ class EntityCounts(Model):
 
 class EntityNameCounts(Model):
     """ Entity counts by name """
-    @staticmethod
-    def iter_link_anchor_target_pairs(doc):
+    def __init__(self, **kwargs):
+        self.lowercase = kwargs.pop('lowercase')
+        super(EntityNameCounts, self).__init__(**kwargs)
+
+    def iter_link_anchor_target_pairs(self, doc):
         for link in doc['links']:
             anchor = doc['text'][link['start']:link['stop']]
-            anchor = anchor.strip().lower()
+            if self.lowercase:
+                anchor = anchor.strip().lower()
             yield anchor, link['target']
 
     def build(self, corpus):
