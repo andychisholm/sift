@@ -7,7 +7,7 @@ import ujson as json
 
 from pyspark import SparkContext, SparkConf
 
-from models import links, text
+from .models import links, text
 
 import logging
 log = logging.getLogger() 

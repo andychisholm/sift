@@ -1,3 +1,4 @@
+
 #!/bin/bash
 set -e
 
@@ -37,5 +38,5 @@ $SPARK_HOME/bin/spark-submit \
     $SPARK_MASTER_SW \
     --driver-memory 8g \
     --executor-memory 8g \
-    sift/__main__.py \
+    $(dirname $0)/sift-worker.py \
     "$@"

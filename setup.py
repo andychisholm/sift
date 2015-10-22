@@ -12,7 +12,8 @@ setup(
     license = 'MIT',
     url = 'https://github.com/wikilinks/sift',
     scripts = {
-        'scripts/sift'
+        'scripts/sift',
+        'scripts/sift-worker.py'
     },
     classifiers=[
         'Development Status :: 4 - Beta',

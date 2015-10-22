@@ -1,6 +1,6 @@
 import textwrap
 import argparse
-from sift.format import ModelFormat, JsonFormat
+from ..format import ModelFormat, JsonFormat
 
 class Model(object):
     def __init__(self, **kwargs):
