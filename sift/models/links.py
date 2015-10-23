@@ -58,6 +58,15 @@ class EntityNameCounts(Model):
                 'total': sum(counts.itervalues())
             })
 
+    @classmethod
+    def add_model_arguments(cls, p):
+        p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
+
+    @classmethod
+    def add_arguments(cls, p):
+        cls.add_model_arguments(p)
+        return super(EntityNameCounts, cls).add_arguments(p)
+
 class EntityInlinks(Model):
     """ Comention counts """
     def build(self, corpus):
