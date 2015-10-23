@@ -4,7 +4,7 @@ import re
 import sys
 import textwrap
 
-import build
+from sift import build
 
 import logging
 log = logging.getLogger()
