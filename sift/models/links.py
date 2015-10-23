@@ -3,8 +3,8 @@ import ujson as json
 from operator import add
 from collections import Counter
 
-from sift.models import Model
-from sift.util import trim_link_subsection, trim_link_protocol
+from ..models import Model
+from ..util import trim_link_subsection, trim_link_protocol
 
 import logging
 log = logging.getLogger()

@@ -5,8 +5,8 @@ from bisect import bisect_left, bisect_right
 from operator import add
 from collections import Counter
 
-from sift.models import Model
-from sift.util import ngrams, iter_sent_spans, trim_link_subsection, trim_link_protocol
+from ..models import Model
+from ..util import ngrams, iter_sent_spans, trim_link_subsection, trim_link_protocol
 
 import logging
 log = logging.getLogger()
