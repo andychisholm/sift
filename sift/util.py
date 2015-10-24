@@ -2,9 +2,11 @@ import re
 from pattern.en import tokenize, parsetree
 
 # todo: use spacy tokenization
-def ngrams(text, n=1):
+def ngrams(text, n=1, lowercase=False):
     for s in tokenize(text):
-        s = s.lower().split()
+        if lowercase:
+            s = s.lower()
+        s = s.split()
         for i in xrange(n):
             for j in xrange(len(s)-i):
                 yield ' '.join(s[j:j+i+1])

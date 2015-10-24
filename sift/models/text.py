@@ -13,9 +13,13 @@ log = logging.getLogger()
 
 class TermFrequencies(Model):
     """ Get term frequencies over a corpus """
+    def __init__(self, **kwargs):
+        self.lowercase = kwargs.pop('lowercase')
+        super(TermFrequencies, self).__init__(**kwargs)
+
     def build(self, corpus, n = 1):
         return corpus\
-            .flatMap(lambda d: ngrams(d['text'], n))\
+            .flatMap(lambda d: ngrams(d['text'], n, lowercase=self.lowercase))\
             .map(lambda t: (t, 1))\
             .reduceByKey(add)\
             .filter(lambda (k,v): v > 1)
@@ -26,6 +30,15 @@ class TermFrequencies(Model):
                 '_id': term,
                 'count': count,
             })
+
+    @classmethod
+    def add_model_arguments(cls, p):
+        p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
+
+    @classmethod
+    def add_arguments(cls, p):
+        cls.add_model_arguments(p)
+        return super(TermFrequencies, cls).add_arguments(p)
 
 class TermDocumentFrequencies(TermFrequencies):
     """ Get document frequencies for terms in a corpus """
