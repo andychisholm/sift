@@ -13,9 +13,19 @@ log = logging.getLogger()
 
 class TermFrequencies(Model):
     """ Get term frequencies over a corpus """
-    def build(self, corpus, n = 1):
-        return corpus\
-            .flatMap(lambda d: ngrams(d['text'], n))\
+    def __init__(self, **kwargs):
+        self.lowercase = kwargs.pop('lowercase')
+        self.max_ngram = kwargs.pop('max_ngram')
+
+    def build(self, corpus):
+        max_ngram = self.max_ngram
+
+        m = corpus.map(lambda d: d['text'])
+        if self.lowercase:
+            m = m.map(unicode.lower)
+
+        return m\
+            .flatMap(lambda text: ngrams(text, max_ngram))\
             .map(lambda t: (t, 1))\
             .reduceByKey(add)\
             .filter(lambda (k,v): v > 1)
@@ -26,6 +36,12 @@ class TermFrequencies(Model):
                 '_id': term,
                 'count': count,
             })
+
+    @classmethod
+    def add_arguments(cls, p):
+        p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
+        p.add_argument('--max-ngram', dest='max_ngram', required=False, default=1, type=int, metavar='MAX_NGRAM')
+        return super(TermFrequencies, cls).add_arguments(p)
 
 class EntityMentions(Model):
     """ Get aggregated sentence context around links in a corpus """
