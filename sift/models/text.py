@@ -196,3 +196,31 @@ class EntityMentionTermFrequency(Model):
         p.add_argument('--skip-norm', dest='normalize', action='store_false')
         p.set_defaults(normalize=True)
         return super(EntityMentionTermFrequency, cls).add_arguments(p)
+
+class TermEntityIndex(Model):
+    """ Build an inverted index mapping high idf terms to entities """
+    def __init__(self, **kwargs):
+        self.num_terms = kwargs.pop('num_terms')
+        super(TermEntityIndex, self).__init__(**kwargs)
+
+    def build(self, corpus):
+        num_terms = self.num_terms
+        return corpus\
+            .map(lambda item: (item['_id'], item['counts'].items()))\
+            .mapValues(EntityMentionTermFrequency.normalize_counts)\
+            .mapValues(lambda vs: sorted(vs, key=lambda (k,v): v, reverse=True)[:num_terms])\
+            .flatMap(lambda (e, cs): ((t, (e, c)) for t, c in cs))\
+            .groupByKey()
+
+    def format_items(self, model):
+        return model\
+            .map(lambda (term, entities): {
+                '_id': term,
+                'entities': dict(entities),
+            })
+
+    @classmethod
+    def add_arguments(cls, p):
+        TermIdfs.add_arguments(p)
+        p.add_argument('--num-terms', dest='num_terms', required=False, default=3, type=int, metavar='NUM_TERMS')
+        return super(TermEntityIndex, cls).add_arguments(p)
