@@ -1,6 +1,7 @@
 import cPickle as pickle
 import ujson as json
 import msgpack
+import base64
 
 class ModelFormat(object):
     def __init__(self):
@@ -54,8 +55,8 @@ class RedisFormat(ModelFormat):
 
         self.serializer = {
             'json': json.dumps,
-            'msgpack': msgpack.dumps,
-            'pickle': lambda o: pickle.dumps(o, -1)
+            'msgpack': lambda o: base64.b64encode(msgpack.dumps(o)),
+            'pickle': lambda o: base64.b64encode(pickle.dumps(o, -1))
         }[serializer]
 
     def __call__(self, model):
