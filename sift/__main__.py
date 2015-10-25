@@ -4,8 +4,6 @@ import re
 import sys
 import textwrap
 
-from sift import build
-
 import logging
 log = logging.getLogger()
 
@@ -14,8 +12,10 @@ logging.basicConfig(format=logFormat)
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
+from sift.models.build import BuildDocModel
+
 APPS = [
-    build.BuildModel
+    BuildDocModel
 ]
 
 def main(args=sys.argv[1:]):

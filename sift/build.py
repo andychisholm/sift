@@ -7,30 +7,20 @@ import ujson as json
 
 from pyspark import SparkContext, SparkConf
 
-from models import links, text
+from sift.format import ModelFormat
 
 import logging
 log = logging.getLogger() 
 
-MODELS = [
-    links.EntityCounts,
-    links.EntityNameCounts,
-    links.EntityComentions,
-    links.EntityInlinks,
-    text.TermIndicies,
-    text.TermFrequencies,
-    text.TermDocumentFrequencies,
-    text.EntityMentions,
-    text.EntityMentionTermFrequency
-]
-
-class BuildModel(object):
-    """ Wrapper for modules which extract models of entities or text using a corpus of linked documents """
+class DatasetBuilder(object):
+    """ Wrapper for modules which extract models of entities or text from a corpus of linked documents """
     def __init__(self, **kwargs):
-        self.corpus_path = kwargs.pop('corpus_path')
         self.output_path = kwargs.pop('output_path')
         self.sample = kwargs.pop('sample')
-        self.sort = False
+
+        fmtcls = kwargs.pop('fmtcls')
+        fmt_args = {p:kwargs[p] for p in fmtcls.__init__.__code__.co_varnames if p in kwargs}
+        self.formatter = fmtcls(**fmt_args)
 
         modelcls = kwargs.pop('modelcls')
         self.model_name = re.sub('([A-Z])', r' \1', modelcls.__name__).strip()
@@ -38,20 +28,21 @@ class BuildModel(object):
         log.info("Building %s...", self.model_name)
         self.model = modelcls(**kwargs)
 
+    def prepare(self, sc):
+        raise NotImplementedError
+
     def __call__(self):
-        log.info('Processing corpus: %s ...', self.corpus_path)
         c = SparkConf().setAppName('Build %s' % self.model_name)
 
         log.info('Using spark master: %s', c.get('spark.master'))
         sc = SparkContext(conf=c)
 
-        corpus = sc.textFile(self.corpus_path).map(json.loads)
-        m = self.model.build(corpus)
-        m = self.model.format(m)
+        data = self.prepare(sc)
+        m = self.model.build(data)
+        m = self.model.format_items(m)
+        m = self.formatter(m)
 
         if self.sample > 0:
-            if self.sort:
-                m = m.map(lambda (k,v): (v,k)).sortByKey(False)
             print '\n'.join(str(i) for i in m.take(self.sample))
         elif self.output_path:
             log.info("Saving to: %s", self.output_path)
@@ -64,13 +55,12 @@ class BuildModel(object):
 
     @classmethod
     def add_arguments(cls, p):
-        p.add_argument('corpus_path', metavar='CORPUS_PATH')
         p.add_argument('--save', dest='output_path', required=False, default=None, metavar='OUTPUT_PATH')
         p.add_argument('--sample', dest='sample', required=False, default=0, type=int, metavar='N')
         p.set_defaults(cls=cls)
 
         sp = p.add_subparsers()
-        for modelcls in MODELS:
+        for modelcls in cls.providers():
             name = modelcls.__name__
             help_str = modelcls.__doc__.split('\n')[0]
             desc = textwrap.dedent(modelcls.__doc__.rstrip())
@@ -79,5 +69,22 @@ class BuildModel(object):
                                 description=desc,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
             modelcls.add_arguments(csp)
+            cls.add_formatter_arguments(csp)
 
+        return p
+
+    @classmethod
+    def add_formatter_arguments(cls, p):
+        sp = p.add_subparsers()
+        for fmtcls in ModelFormat.iter_options():
+            name = fmtcls.__name__.lower()
+            if name.endswith('format'):
+                name = name[:-len('format')]
+            help_str = fmtcls.__doc__.split('\n')[0]
+            desc = textwrap.dedent(fmtcls.__doc__.rstrip())
+            csp = sp.add_parser(name,
+                                help=help_str,
+                                description=desc,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+            fmtcls.add_arguments(csp)
         return p

@@ -1,13 +1,11 @@
 import re
-from pattern.en import tokenize, parsetree
+from pattern import en
 
 # todo: use spacy tokenization
 def ngrams(text, n=1):
-    for s in tokenize(text):
-        s = s.lower().split()
-        for i in xrange(n):
-            for j in xrange(len(s)-i):
-                yield ' '.join(s[j:j+i+1])
+    for i in xrange(n):
+        for n in en.ngrams(text, n=i+1):
+            yield ' '.join(n)
 
 SENT_RE = re.compile('((?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|[\?!])\s)|(\s*\n\s*)')
 def iter_sent_spans(text):
