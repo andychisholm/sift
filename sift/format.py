@@ -10,6 +10,7 @@ class ModelFormat(object):
     def iter_options(cls):
         yield JsonFormat
         yield RedisFormat
+        yield TsvFormat
 
 class TsvFormat(ModelFormat):
     """ Format model output as tab separated values """
@@ -22,7 +23,9 @@ class TsvFormat(ModelFormat):
                 if '_id' in item:
                     key_order.append('_id')
                 key_order += sorted(k for k in item.iterkeys() if k != '_id')
-            yield '\t'.join(str(item[k]) for k in key_order)
+
+            # todo: proper field serialization and escapes
+            yield u'\t'.join(unicode(item[k]) for k in key_order).encode('utf-8')
 
     def __call__(self, model):
         return model.mapPartitions(self.items_to_tsv)
