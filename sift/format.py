@@ -1,4 +1,6 @@
+import cPickle as pickle
 import ujson as json
+import msgpack
 
 class ModelFormat(object):
     def __init__(self):
@@ -47,17 +49,25 @@ class JsonFormat(ModelFormat):
 
 class RedisFormat(ModelFormat):
     """ Format model output as redis protocol SET commands """
-    def __init__(self, prefix):
+    def __init__(self, prefix, serializer):
         self.prefix = prefix
+
+        self.serializer = {
+            'json': json.dumps,
+            'msgpack': msgpack.dumps,
+            'pickle': lambda o: pickle.dumps(o, -1)
+        }[serializer]
 
     def __call__(self, model):
         cmd = '\r\n'.join(["*3", "$3", "SET", "${}", "{}", "${}", "{}"])+'\r'
+
         return model\
-            .map(lambda i: ((self.prefix+i['_id'].replace('"','\\"')).encode('utf-8'), json.dumps(i)))\
+            .map(lambda i: ((self.prefix+i['_id'].replace('"','\\"')).encode('utf-8'), self.serializer(i)))\
             .map(lambda (t, c): cmd.format(len(t), t, len(c), c))
 
     @classmethod
     def add_arguments(cls, p):
         p.add_argument('--prefix', required=False, default='', metavar='PREFIX')
+        p.add_argument('--serializer', choices=['json', 'pickle', 'msgpack'], required=False, default='json', metavar='SERIALIZER')
         p.set_defaults(fmtcls=cls)
         return p
