@@ -34,7 +34,7 @@ class EntityNameCounts(Model):
         self.lowercase = kwargs.pop('lowercase')
         super(EntityNameCounts, self).__init__(**kwargs)
 
-    def iter_link_anchor_target_pairs(doc):
+    def iter_link_anchor_target_pairs(self, doc):
         for link in doc['links']:
             anchor = doc['text'][link['start']:link['stop']].strip()
             if self.lowercase:
