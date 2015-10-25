@@ -1,0 +1,28 @@
+#!/bin/bash
+set -e
+
+WKDATE=latest
+PARA_ARG=""
+
+if [ $# -gt 0 ]
+then
+    WKDATE=$1
+    if [ $# == 2 ]
+    then
+        PARA_ARG="-P $2"
+    fi
+fi
+
+if [ "$WKDATE" == "latest" ]; then
+    export LINK_PFX=/enwiki/latest/
+fi
+
+export WKDIR=$WKDATE
+export WKDATE
+rm -rf $WKDIR
+mkdir -p $WKDIR
+
+curl "https://dumps.wikimedia.org/enwiki/$WKDATE/" |\
+grep "enwiki-$WKDATE-pages-articles[0-9]*.xml-p[0-9]*p[0-9]*.bz2\""|\
+awk -v pfx=$LINK_PFX -F'"' '{print "https://dumps.wikimedia.org" pfx $2}' |\
+xargs -n1 $PARA_ARG -L 1 bash -c 'wget $0 -P $WKDIR'

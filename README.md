@@ -16,10 +16,14 @@ pip install git+http://git@github.com/wikilinks/sift.git
 
 ### Entity Prominence in Wikipedia
 
-Using the [wikijson](https://github.com/wikilinks/wikijson) framework, prepare a corpus of documents from Wikipedia
+Download the latest paritioned Wikipedia dump into the 'latest' directory.
 ```bash
-wkdl latest
-wkjs process-dump latest wikidocs
+download-wikipedia latest
+```
+
+Extract a clean, json formatted corpus of documents from the raw Mediawiki dump.
+```bash
+sift build-corpus --save wikidocs WikipediaArticles latest json
 ```
 
 Extract link counts over this corpus, saving records under the 'counts' directory as compressed json.
