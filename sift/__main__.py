@@ -12,9 +12,11 @@ logging.basicConfig(format=logFormat)
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
+from sift.corpora.build import BuildCorpus
 from sift.models.build import BuildDocModel
 
 APPS = [
+    BuildCorpus,
     BuildDocModel
 ]
 

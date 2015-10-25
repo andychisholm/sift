@@ -1,0 +1,2 @@
+class Corpus(object):
+    pass
