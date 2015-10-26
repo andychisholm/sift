@@ -81,24 +81,29 @@ class EntityMentions(Model):
 class TermDocumentFrequencies(Model):
     """ Get document frequencies for terms in a corpus """
     def __init__(self, **kwargs):
+        self.lowercase = kwargs.pop('lowercase')
         self.max_ngram = kwargs.pop('max_ngram')
         self.min_df = kwargs.pop('min_df')
         super(TermDocumentFrequencies, self).__init__(**kwargs)
 
     def build(self, corpus):
-        max_ngram = self.max_ngram
-        min_df = self.min_df
-        log.info('Building df model: max-ngram=%i, min-df=%i', max_ngram, min_df)
+        log.info('Building df model: max-ngram=%i, min-df=%i', self.max_ngram, self.min_df)
 
-        return corpus\
-            .flatMap(lambda d: set(ngrams(d['text'], max_ngram)))\
+        m = corpus.map(lambda d: d['text'])
+
+        if self.lowercase:
+            m = m.map(lambda text: text.lower())
+
+        return m\
+            .flatMap(lambda text: set(ngrams(text, self.max_ngram)))\
             .map(lambda t: (t, 1))\
             .reduceByKey(add)\
-            .filter(lambda (k,v): v > min_df)
+            .filter(lambda (k,v): v > self.min_df)
 
     @classmethod
     def add_arguments(cls, p):
-        p.add_argument('--max-ngram', dest='max_ngram', required=False, default=2, type=int, metavar='MAX_NGRAM')
+        p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
+        p.add_argument('--max-ngram', dest='max_ngram', required=False, default=1, type=int, metavar='MAX_NGRAM')
         p.add_argument('--min-df', dest='min_df', required=False, default=1, type=int, metavar='MIN_DF')
         return super(TermDocumentFrequencies, cls).add_arguments(p)
 
@@ -156,17 +161,16 @@ class EntityMentionTermFrequency(Model):
 
     def build(self, corpus):
         idfs = self.idf_model.build(corpus)
-        max_ngram = self.idf_model.max_ngram
-        filter_target = self.filter_target
 
         m = corpus.flatMap(EntityMentions.iter_mentions)
-        if filter_target:
-            log.info('Filtering mentions targeting: %s', filter_target)
-            m = m.filter(lambda (target, _): target.startswith(filter_target))
+
+        if self.filter_target:
+            log.info('Filtering mentions targeting: %s', self.filter_target)
+            m = m.filter(lambda (target, _): target.startswith(self.filter_target))
 
         m = m\
             .map(lambda (target, (span, text)): (target, text))\
-            .mapValues(lambda v: ngrams(v, max_ngram))\
+            .mapValues(lambda v: ngrams(v, self.idf_model.max_ngram))\
             .flatMap(lambda (target, tokens): (((target, t), 1) for t in tokens))\
             .reduceByKey(add)\
             .map(lambda ((target, token), count): (token, (target, count)))\
@@ -193,8 +197,7 @@ class EntityMentionTermFrequency(Model):
     def add_arguments(cls, p):
         TermIdfs.add_arguments(p)
         p.add_argument('--filter', dest='filter_target', required=False, default=None, metavar='FILTER')
-        p.add_argument('--skip-norm', dest='normalize', action='store_false')
-        p.set_defaults(normalize=True)
+        p.add_argument('--skip-norm', dest='normalize', action='store_false', default=True)
         return super(EntityMentionTermFrequency, cls).add_arguments(p)
 
 class TermEntityIndex(Model):
