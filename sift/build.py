@@ -56,7 +56,7 @@ class DatasetBuilder(object):
     @classmethod
     def add_arguments(cls, p):
         p.add_argument('--save', dest='output_path', required=False, default=None, metavar='OUTPUT_PATH')
-        p.add_argument('--sample', dest='sample', required=False, default=0, type=int, metavar='N')
+        p.add_argument('--sample', dest='sample', required=False, default=1, type=int, metavar='NUM_SAMPLES')
         p.set_defaults(cls=cls)
 
         sp = p.add_subparsers()
