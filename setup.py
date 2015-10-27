@@ -11,9 +11,10 @@ setup(
     packages = find_packages(),
     license = 'MIT',
     url = 'https://github.com/wikilinks/sift',
-    scripts = {
-        'scripts/sift'
-    },
+    scripts = [
+        'scripts/sift',
+        'scripts/download-wikipedia'
+    ],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
@@ -25,7 +26,9 @@ setup(
     install_requires = [
         "ujson",
         "numpy",
-        "pattern"
+        "pattern",
+        "gensim",
+        "msgpack-python"
     ],
     test_suite = __pkg_name__ + '.test'
 )

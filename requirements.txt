@@ -1,4 +1,5 @@
 ujson
 numpy
 pattern
+gensim
 msgpack-python

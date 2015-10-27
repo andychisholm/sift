@@ -1,6 +1,6 @@
 import ujson as json
 from sift.build import DatasetBuilder
-from sift.models import links, text
+from sift.models import links, text, embeddings
 
 class BuildDocModel(DatasetBuilder):
     """ Build a model over a corpus of text documents """
@@ -24,7 +24,8 @@ class BuildDocModel(DatasetBuilder):
             text.TermFrequencies,
             text.TermDocumentFrequencies,
             text.EntityMentions,
-            text.EntityMentionTermFrequency
+            text.EntityMentionTermFrequency,
+            embeddings.EntitySkipGramEmbeddings,
         ]
 
     @classmethod
