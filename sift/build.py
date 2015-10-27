@@ -42,14 +42,14 @@ class DatasetBuilder(object):
         m = self.model.format_items(m)
         m = self.formatter(m)
 
-        if self.sample > 0:
-            print '\n'.join(str(i) for i in m.take(self.sample))
-        elif self.output_path:
+        if self.output_path:
             log.info("Saving to: %s", self.output_path)
             if os.path.isdir(self.output_path):
                 log.warn('Writing over output path: %s', self.output_path)
                 shutil.rmtree(self.output_path)
             m.saveAsTextFile(self.output_path, 'org.apache.hadoop.io.compress.GzipCodec')
+        elif self.sample > 0:
+            print '\n'.join(str(i) for i in m.take(self.sample))
 
         log.info('Done.')
 
