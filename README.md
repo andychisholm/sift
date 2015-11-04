@@ -31,7 +31,7 @@ Extract link counts over this corpus, saving records under the 'counts' director
 sift build-model wikidocs --save counts EntityCounts json
 ```
 
-### Json Output
+### Inspecting Output
 
 The json record format allows for easy inspection of model output:
 ```bash

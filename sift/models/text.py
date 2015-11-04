@@ -210,7 +210,6 @@ class TermEntityIndex(Model):
         num_terms = self.num_terms
         return corpus\
             .map(lambda item: (item['_id'], item['counts'].items()))\
-            .mapValues(EntityMentionTermFrequency.normalize_counts)\
             .mapValues(lambda vs: sorted(vs, key=lambda (k,v): v, reverse=True)[:num_terms])\
             .flatMap(lambda (e, cs): ((t, (e, c)) for t, c in cs))\
             .groupByKey()

@@ -25,6 +25,7 @@ class BuildDocModel(DatasetBuilder):
             text.TermDocumentFrequencies,
             text.EntityMentions,
             text.EntityMentionTermFrequency,
+            text.TermEntityIndex,
             embeddings.EntitySkipGramEmbeddings,
         ]
 
