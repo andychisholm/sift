@@ -2,8 +2,8 @@ import re
 from pattern import en
 
 # todo: use spacy tokenization
-def ngrams(text, n=1):
-    for i in xrange(n):
+def ngrams(text, max_n=1, min_n=1):
+    for i in xrange(min_n-1,max_n):
         for n in en.ngrams(text, n=i+1):
             yield ' '.join(n)
 
