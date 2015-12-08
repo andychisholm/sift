@@ -101,3 +101,47 @@ class EntityInlinks(Model):
                 '_id': target,
                 'inlinks': inlinks
             })
+
+class EntityVocab(EntityCounts):
+    """ Generate unique indexes for entities in a corpus. """
+    def __init__(self, **kwargs):
+        self.min_rank = kwargs.pop('min_rank')
+        self.max_rank = kwargs.pop('max_rank')
+        super(EntityVocab, self).__init__(**kwargs)
+
+    def build(self, corpus):
+        log.info('Building entity vocab: df rank range=(%i, %i)', self.min_rank, self.max_rank)
+        m = super(EntityVocab, self)\
+            .build(corpus)\
+            .map(lambda (target, count): (count, target))\
+            .sortByKey(False)\
+            .zipWithIndex()\
+            .map(lambda ((df, t), idx): (t, (df, idx)))
+
+        if self.min_rank != None:
+            m = m.filter(lambda (t, (df, idx)): idx >= self.min_rank)
+        if self.max_rank != None:
+            m = m.filter(lambda (t, (df, idx)): idx < self.max_rank)
+        return m
+
+    def format_items(self, model):
+        return model\
+            .map(lambda (term, (f, idx)): {
+                '_id': term,
+                'count': f,
+                'rank': idx
+            })
+
+    @staticmethod
+    def load(sc, path, fmt=json):
+        log.info('Loading entity-index mapping: %s ...', path)
+        return sc\
+            .textFile(path)\
+            .map(fmt.loads)\
+            .map(lambda r: (r['_id'], (r['count'], r['rank'])))
+
+    @classmethod
+    def add_arguments(cls, p):
+        p.add_argument('--min-rank', dest='min_rank', required=False, default=0, type=int, metavar='MIN_RANK')
+        p.add_argument('--max-rank', dest='max_rank', required=False, default=int(1e5), type=int, metavar='MAX_RANK')
+        return super(EntityVocab, cls).add_arguments(p)
