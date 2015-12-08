@@ -107,34 +107,59 @@ class TermDocumentFrequencies(Model):
         p.add_argument('--min-df', dest='min_df', required=False, default=1, type=int, metavar='MIN_DF')
         return super(TermDocumentFrequencies, cls).add_arguments(p)
 
-class TermIndicies(TermDocumentFrequencies):
-    """ Generate uniqe indexes for termed based on their document frequency ranking. """
+class TermVocab(TermDocumentFrequencies):
+    """ Generate unique indexes for termed based on their document frequency ranking. """
+    def __init__(self, **kwargs):
+        self.min_rank = kwargs.pop('min_rank')
+        self.max_rank = kwargs.pop('max_rank')
+        super(TermVocab, self).__init__(**kwargs)
+
     def build(self, corpus):
-        return super(TermIndicies, self)\
+        log.info('Building vocab: df rank range=(%i, %i)', self.min_rank, self.max_rank)
+        m = super(TermVocab, self)\
             .build(corpus)\
             .map(lambda (t, df): (df, t))\
             .sortByKey(False)\
             .zipWithIndex()\
             .map(lambda ((df, t), idx): (t, (df, idx)))
 
-class TermIdfs(TermIndicies):
-    """ Compute tf-idf weighted token counts over sentence contexts around links in a corpus """
-    def __init__(self, **kwargs):
-        self.min_rank = kwargs.pop('min_rank')
-        self.max_rank = kwargs.pop('max_rank')
-        super(TermIdfs, self).__init__(**kwargs)
+        if self.min_rank != None:
+            m = m.filter(lambda (t, (df, idx)): idx >= self.min_rank)
+        if self.max_rank != None:
+            m = m.filter(lambda (t, (df, idx)): idx < self.max_rank)
+        return m
 
+    def format_items(model):
+        return model\
+            .map(lambda (term, (f, idx)): {
+                '_id': term,
+                'count': f,
+                'rank': idx
+            })
+
+    @staticmethod
+    def load(sc, path, fmt=json):
+        log.info('Loading vocab: %s ...', path)
+        return sc\
+            .textFile(path)\
+            .map(fmt.loads)\
+            .map(lambda r: (r['_id'], (r['count'], r['rank'])))
+
+    @classmethod
+    def add_arguments(cls, p):
+        p.add_argument('--min-rank', dest='min_rank', required=False, default=100, type=int, metavar='MIN_RANK')
+        p.add_argument('--max-rank', dest='max_rank', required=False, default=int(5e5), type=int, metavar='MAX_RANK')
+        return super(TermVocab, cls).add_arguments(p)
+
+class TermIdfs(Model):
+    """ Compute tf-idf weighted token counts over sentence contexts around links in a corpus """
     def build(self, corpus):
         log.info('Counting documents in corpus...')
         N = float(corpus.count())
+        idxs = super(TermIdfs, self).build(corpus)
 
-        log.info('Building idf model: N=%i, df-range=(%i, %i)', N, self.min_rank, self.max_rank)
-        min_rank = self.min_rank
-        max_rank = self.max_rank
-
-        return super(TermIdfs, self)\
-            .build(corpus)\
-            .filter(lambda (token, (df, rank)): rank >= min_rank and rank < max_rank)\
+        log.info('Building idf model: N=%i', N)
+        return idxs\
             .map(lambda (token, (df, rank)): (token, df))\
             .mapValues(lambda df: math.log(N/df))
 
@@ -145,11 +170,13 @@ class TermIdfs(TermIndicies):
                 'idf': idf,
             })
 
-    @classmethod
-    def add_arguments(cls, p):
-        p.add_argument('--min-rank', dest='min_rank', required=False, default=100, type=int, metavar='MIN_RANK')
-        p.add_argument('--max-rank', dest='max_rank', required=False, default=int(5e5), type=int, metavar='MAX_RANK')
-        return super(TermIdfs, cls).add_arguments(p)
+    @staticmethod
+    def load(sc, path, fmt=json):
+        log.info('Loading idf model: %s...', path)
+        return sc\
+            .textFile(path)\
+            .map(fmt.loads)\
+            .map(lambda r: (r['_id'], r['idf']))
 
 class EntityMentionTermFrequency(Model):
     """ Compute tf-idf weighted token counts over sentence contexts around links in a corpus """
@@ -161,7 +188,6 @@ class EntityMentionTermFrequency(Model):
 
     def build(self, corpus):
         idfs = self.idf_model.build(corpus)
-
         m = corpus.flatMap(EntityMentions.iter_mentions)
 
         if self.filter_target:
