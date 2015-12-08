@@ -6,7 +6,6 @@ import argparse
 import ujson as json
 
 from pyspark import SparkContext, SparkConf
-
 from sift.format import ModelFormat
 
 import logging
@@ -28,17 +27,14 @@ class DatasetBuilder(object):
         log.info("Building %s...", self.model_name)
         self.model = modelcls(**kwargs)
 
-    def prepare(self, sc):
-        raise NotImplementedError
-
     def __call__(self):
         c = SparkConf().setAppName('Build %s' % self.model_name)
 
         log.info('Using spark master: %s', c.get('spark.master'))
         sc = SparkContext(conf=c)
 
-        data = self.prepare(sc)
-        m = self.model.build(data)
+        m = self.model.prepare(sc)
+        m = self.model.build(m)
         m = self.model.format_items(m)
         m = self.formatter(m)
 
