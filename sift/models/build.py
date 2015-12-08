@@ -4,15 +4,6 @@ from sift.models import links, text, embeddings
 
 class BuildDocModel(DatasetBuilder):
     """ Build a model over a corpus of text documents """
-    def __init__(self, *args, **kwargs): 
-        self.corpus_path = kwargs.pop('corpus_path')
-        super(BuildDocModel, self).__init__(*args, **kwargs)
-
-    def prepare(self, sc):
-        return sc\
-            .textFile(self.corpus_path)\
-            .map(json.loads)
-
     @classmethod
     def providers(cls):
         return [
@@ -28,9 +19,3 @@ class BuildDocModel(DatasetBuilder):
             text.TermEntityIndex,
             embeddings.EntitySkipGramEmbeddings,
         ]
-
-    @classmethod
-    def add_arguments(cls, p):
-        p.add_argument('corpus_path', metavar='CORPUS_PATH')
-        super(BuildDocModel, cls).add_arguments(p)
-        return p
