@@ -12,26 +12,28 @@ virtualenv ve
 pip install git+http://git@github.com/wikilinks/sift.git
 ```
 
-## Example
+## Getting Started
 
-### Entity Prominence in Wikipedia
+To use sift, you'll need some data. Out of the box, sift includes utilities for downloading and extracting text from the latest Wikipedia dumps.
 
 Download the latest paritioned Wikipedia dump into the 'latest' directory.
 ```bash
 download-wikipedia latest
 ```
 
-Extract a clean, json formatted corpus of documents from the raw Mediawiki dump.
+Extract a clean json formatted corpus of documents from raw Mediawiki markup, saving results under the 'wikidocs' directory.
 ```bash
 sift build-corpus --save wikidocs WikipediaArticles latest json
 ```
 
-Extract link counts over this corpus, saving records under the 'counts' directory as compressed json.
+Build a model over our corpus of processed Wikipedia documents which counts the number inlinks for each entity.
 ```bash
-sift build-model wikidocs --save counts EntityCounts json
+sift build-doc-model --save counts EntityCounts wikidocs json
 ```
 
-### Inspecting Output
+### Output Formats
+
+In the examples above, we passed the `json` flag for formatting results.
 
 The json record format allows for easy inspection of model output:
 ```bash
@@ -46,8 +48,7 @@ Result:
 }
 ```
 
-### Bulk Import
-This format also allows for easy bulk import of results into mongo:
+This format also allows for easy bulk import of results into MongoDB:
 ```
 zcat -r counts/*.gz | mongoimport --db models --collection counts
 ```
