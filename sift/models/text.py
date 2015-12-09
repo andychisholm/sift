@@ -5,6 +5,7 @@ from bisect import bisect_left, bisect_right
 from operator import add
 from collections import Counter
 
+from sift.models.links import EntityVocab
 from sift.dataset import Model
 from sift.util import ngrams, iter_sent_spans, trim_link_subsection, trim_link_protocol
 
@@ -45,8 +46,12 @@ class TermFrequencies(Model):
 
 class EntityMentions(Model):
     """ Get aggregated sentence context around links in a corpus """
+    def __init__(self, **kwargs):
+        self.sentence_window = kwargs.pop('sentence_window')
+        super(EntityMentions, self).__init__(**kwargs)
+
     @staticmethod
-    def iter_mentions(doc):
+    def iter_mentions(doc, window = 1):
         sent_spans = list(iter_sent_spans(doc['text']))
         sent_offsets = [s.start for s in sent_spans]
 
@@ -57,6 +62,11 @@ class EntityMentions(Model):
             sent_start_idx = bisect_right(sent_offsets, link['start']) - 1
             sent_end_idx = bisect_left(sent_offsets, link['stop']) - 1
 
+            lhs_offset = window / 2
+            rhs_offset = (window - lhs_offset) - 1
+            sent_start_idx = max(0, sent_start_idx - lhs_offset)
+            sent_end_idx = min(len(sent_spans)-1, sent_end_idx + rhs_offset)
+
             target = trim_link_subsection(link['target'])
             target = trim_link_protocol(target)
 
@@ -66,8 +76,9 @@ class EntityMentions(Model):
             yield target, (span, doc['text'][sent_spans[sent_start_idx].start:sent_spans[sent_end_idx].stop])
 
     def build(self, corpus):
+        log.info('Building entity mention corpus with context window of %i sentences...', self.sentence_window)
         return corpus\
-            .flatMap(self.iter_mentions)\
+            .flatMap(lambda d: self.iter_mentions(d, self.sentence_window))\
             .groupByKey()\
             .mapValues(list)
 
@@ -77,6 +88,57 @@ class EntityMentions(Model):
                 '_id': link,
                 'mentions': mentions,
             })
+
+    @classmethod
+    def add_arguments(cls, p):
+        p.add_argument('--window', dest='sentence_window', required=False, default=1, type=int, metavar='SENTENCE_WINDOW')
+        return super(EntityMentions, cls).add_arguments(p)
+
+class MappedEntityMentions(EntityMentions):
+    """ Entity mention corpus with terms and entities mapped to numeric indexes """
+    def __init__(self, **kwargs):
+        self.term_vocab_path = kwargs.pop('term_vocab_path')
+        self.entity_vocab_path = kwargs.pop('entity_vocab_path')
+        super(MappedEntityMentions, self).__init__(**kwargs)
+
+    def prepare(self, sc):
+        log.info('Preparing mapped entity mentions...')
+        tv = TermVocab\
+            .load(sc, self.term_vocab_path)\
+            .map(lambda (term, (count, rank)): (term, rank))
+        tvd = dict(tv.collect())
+        self.oov_id = len(tvd) - 1
+        self.tv = sc.broadcast(tvd)
+
+        ev = EntityVocab\
+            .load(sc, self.entity_vocab_path)\
+            .map(lambda (term, (count, rank)): (term, rank))
+
+        self.ev = sc.broadcast(dict(ev.collect()))
+        return super(MappedEntityMentions, self).prepare(sc)
+
+    def map_mention(self, mention):
+        (start, stop), text = mention
+
+        pre = list(ngrams(text[:start], 1))
+        ins = list(ngrams(text[start:stop], 1))
+        post = list(ngrams(text[stop:], 1))
+
+        return (len(pre), len(pre)+len(ins)), pre+ins+post
+
+    def build(self, corpus):
+        return super(MappedEntityMentions, self)\
+            .build(corpus)\
+            .map(lambda (target, mentions): (self.ev.value.get(target, -1), [self.map_mention(m) for m in mentions]))\
+            .filter(lambda (target, mentions): target != -1)\
+            .mapValues(lambda mentions: [(s, [self.tv.value.get(t, self.oov_id) for t in m]) for s, m in mentions])
+
+    @classmethod
+    def add_arguments(cls, p):
+        super(MappedEntityMentions, cls).add_arguments(p)
+        p.add_argument('term_vocab_path', metavar='TERM_VOCAB_PATH')
+        p.add_argument('entity_vocab_path', metavar='ENTITY_VOCAB_PATH')
+        return p
 
 class TermDocumentFrequencies(Model):
     """ Get document frequencies for terms in a corpus """
