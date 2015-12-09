@@ -2,9 +2,10 @@ import ujson as json
 
 from operator import add
 from collections import Counter
+from itertools import chain
 
 from sift.dataset import Model
-from sift.util import trim_link_subsection, trim_link_protocol
+from sift.util import trim_link_subsection, trim_link_protocol, ngrams
 
 import logging
 log = logging.getLogger()
@@ -51,19 +52,22 @@ class EntityNameCounts(Model):
         self.filter_target = kwargs.pop('filter_target')
         super(EntityNameCounts, self).__init__(**kwargs)
 
-    def iter_link_anchor_target_pairs(self, doc):
+    def iter_anchor_target_pairs(self, doc):
         for link in doc['links']:
+            target = link['target']
+            target = trim_link_subsection(target)
+            target = trim_link_protocol(target)
+
             anchor = doc['text'][link['start']:link['stop']].strip()
+
             if self.lowercase:
                 anchor = anchor.lower()
-            yield anchor, link['target']
+
+            if anchor and target:
+                yield anchor, target
 
     def build(self, corpus):
-        m = corpus\
-            .flatMap(self.iter_link_anchor_target_pairs)\
-            .filter(lambda (a, t): a)\
-            .mapValues(trim_link_subsection)\
-            .mapValues(trim_link_protocol)
+        m = corpus.flatMap(self.iter_anchor_target_pairs)
 
         if self.filter_target:
             m = m.filter(lambda (a, t): t.startswith(self.filter_target))
@@ -83,6 +87,57 @@ class EntityNameCounts(Model):
         p.add_argument('--filter', dest='filter_target', required=False, default=None)
         p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
         return super(EntityNameCounts, cls).add_arguments(p)
+
+class NamePartCounts(Model):
+    """ Occurrence counts for ngrams at different positions within link anchors """
+    def __init__(self, **kwargs):
+        self.lowercase = kwargs.pop('lowercase')
+        self.filter_target = kwargs.pop('filter_target')
+        super(NamePartCounts, self).__init__(**kwargs)
+
+    @staticmethod
+    def iter_span_count_types(anchor, n):
+        parts = list(ngrams(anchor, n, n))
+        if parts:
+            yield parts[0], 'B'
+            yield parts[-1], 'E'
+            for i in xrange(1, len(parts)-1):
+                yield parts[i], 'I'
+
+    def build(self, corpus):
+        n = 2
+        part_counts = corpus\
+            .flatMap(self.iter_anchor_target_pairs)\
+            .map(lambda (a,t): a)\
+            .flatMap(lambda a: chain.from_iterable(self.iter_span_count_types(a, i) for i in xrange(1, n+1)))\
+            .map(lambda p: (p, 1))\
+            .reduceByKey(add)\
+            .map(lambda ((term, spantype), count): (term, (spantype, count)))
+
+        part_counts += corpus\
+            .flatMap(lambda d: ngrams(d['text'], n))\
+            .map(lambda t: (t, 1))\
+            .reduceByKey(add)\
+            .filter(lambda (t, c): c > 1)\
+            .map(lambda (t, c): (t, ('O', c)))
+
+        return part_counts\
+            .groupByKey()\
+            .mapValues(dict)\
+            .filter(lambda (t, cs): 'O' in cs and len(cs) > 1)
+
+    def format_items(self, model):
+        return model\
+            .map(lambda (term, part_counts): {
+                '_id': term,
+                'counts': dict(part_counts)
+            })
+
+    @classmethod
+    def add_arguments(cls, p):
+        p.add_argument('--filter', dest='filter_target', required=False, default=None)
+        p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
+        return super(NamePartCounts, cls).add_arguments(p)
 
 class EntityInlinks(Model):
     """ Comention counts """
