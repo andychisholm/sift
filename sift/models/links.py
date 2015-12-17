@@ -90,12 +90,27 @@ class EntityNameCounts(DocumentModel):
         p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
         return super(EntityNameCounts, cls).add_arguments(p)
 
-class NamePartCounts(Model):
-    """ Occurrence counts for ngrams at different positions within link anchors """
+class NamePartCounts(DocumentModel):
+    """
+    Occurrence counts for ngrams at different positions within link anchors.
+        'B' - beginning of span
+        'E' - end of span
+        'I' - inside span
+        'O' - outside span
+    """
     def __init__(self, **kwargs):
         self.lowercase = kwargs.pop('lowercase')
         self.filter_target = kwargs.pop('filter_target')
+        self.max_ngram = kwargs.pop('max_ngram')
         super(NamePartCounts, self).__init__(**kwargs)
+
+    def iter_anchors(self, doc):
+        for link in doc['links']:
+            anchor = doc['text'][link['start']:link['stop']].strip()
+            if self.lowercase:
+                anchor = anchor.lower()
+            if anchor:
+                yield anchor
 
     @staticmethod
     def iter_span_count_types(anchor, n):
@@ -107,17 +122,15 @@ class NamePartCounts(Model):
                 yield parts[i], 'I'
 
     def build(self, corpus):
-        n = 2
         part_counts = corpus\
-            .flatMap(self.iter_anchor_target_pairs)\
-            .map(lambda (a,t): a)\
-            .flatMap(lambda a: chain.from_iterable(self.iter_span_count_types(a, i) for i in xrange(1, n+1)))\
+            .flatMap(self.iter_anchors)\
+            .flatMap(lambda a: chain.from_iterable(self.iter_span_count_types(a, i) for i in xrange(1, self.max_ngram+1)))\
             .map(lambda p: (p, 1))\
             .reduceByKey(add)\
             .map(lambda ((term, spantype), count): (term, (spantype, count)))
 
         part_counts += corpus\
-            .flatMap(lambda d: ngrams(d['text'], n))\
+            .flatMap(lambda d: ngrams(d['text'], self.max_ngram))\
             .map(lambda t: (t, 1))\
             .reduceByKey(add)\
             .filter(lambda (t, c): c > 1)\
@@ -139,6 +152,7 @@ class NamePartCounts(Model):
     def add_arguments(cls, p):
         p.add_argument('--filter', dest='filter_target', required=False, default=None)
         p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
+        p.add_argument('--max-ngram', dest='max_ngram', required=False, default=2, type=int)
         return super(NamePartCounts, cls).add_arguments(p)
 
 class EntityInlinks(DocumentModel):
