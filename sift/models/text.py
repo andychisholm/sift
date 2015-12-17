@@ -6,13 +6,13 @@ from operator import add
 from collections import Counter
 
 from sift.models.links import EntityVocab
-from sift.dataset import Model
+from sift.dataset import DocumentModel
 from sift.util import ngrams, iter_sent_spans, trim_link_subsection, trim_link_protocol
 
 import logging
 log = logging.getLogger()
 
-class TermFrequencies(Model):
+class TermFrequencies(DocumentModel):
     """ Get term frequencies over a corpus """
     def __init__(self, **kwargs):
         self.lowercase = kwargs.pop('lowercase')
@@ -44,7 +44,7 @@ class TermFrequencies(Model):
         p.add_argument('--max-ngram', dest='max_ngram', required=False, default=1, type=int, metavar='MAX_NGRAM')
         return super(TermFrequencies, cls).add_arguments(p)
 
-class EntityMentions(Model):
+class EntityMentions(DocumentModel):
     """ Get aggregated sentence context around links in a corpus """
     def __init__(self, **kwargs):
         self.sentence_window = kwargs.pop('sentence_window')
@@ -140,7 +140,7 @@ class MappedEntityMentions(EntityMentions):
         p.add_argument('entity_vocab_path', metavar='ENTITY_VOCAB_PATH')
         return p
 
-class TermDocumentFrequencies(Model):
+class TermDocumentFrequencies(DocumentModel):
     """ Get document frequencies for terms in a corpus """
     def __init__(self, **kwargs):
         self.lowercase = kwargs.pop('lowercase')
@@ -178,6 +178,7 @@ class TermVocab(TermDocumentFrequencies):
 
     def build(self, corpus):
         log.info('Building vocab: df rank range=(%i, %i)', self.min_rank, self.max_rank)
+
         m = super(TermVocab, self)\
             .build(corpus)\
             .map(lambda (t, df): (df, t))\
@@ -213,16 +214,16 @@ class TermVocab(TermDocumentFrequencies):
         p.add_argument('--max-rank', dest='max_rank', required=False, default=int(5e5), type=int, metavar='MAX_RANK')
         return super(TermVocab, cls).add_arguments(p)
 
-class TermIdfs(Model):
+class TermIdfs(TermDocumentFrequencies):
     """ Compute tf-idf weighted token counts over sentence contexts around links in a corpus """
     def build(self, corpus):
         log.info('Counting documents in corpus...')
         N = float(corpus.count())
-        idxs = super(TermIdfs, self).build(corpus)
+        dfs = super(TermIdfs, self).build(corpus)
 
         log.info('Building idf model: N=%i', N)
-        return idxs\
-            .map(lambda (token, (df, rank)): (token, df))\
+        return dfs\
+            .map(lambda (term, (df, rank)): (term, df))\
             .mapValues(lambda df: math.log(N/df))
 
     def format_items(self, model):
@@ -240,16 +241,20 @@ class TermIdfs(Model):
             .map(fmt.loads)\
             .map(lambda r: (r['_id'], r['idf']))
 
-class EntityMentionTermFrequency(Model):
+class EntityMentionTermFrequency(DocumentModel):
     """ Compute tf-idf weighted token counts over sentence contexts around links in a corpus """
     def __init__(self, **kwargs):
-        self.idf_model = TermIdfs(**kwargs)
+        self.idf_model_path = kwargs.pop('idf_model_path')
         self.normalize = kwargs.pop('normalize')
         self.filter_target = kwargs.pop('filter_target')
+        self.max_ngram = kwargs.pop('max_ngram')
         super(EntityMentionTermFrequency, self).__init__(**kwargs)
 
+    def prepare(self, sc):
+        self.idf_model = TermIdfs.load(self.idf_model_path)
+        return super(EntityMenitonTermFrequency, self).prepare(sc)
+
     def build(self, corpus):
-        idfs = self.idf_model.build(corpus)
         m = corpus.flatMap(EntityMentions.iter_mentions)
 
         if self.filter_target:
@@ -258,11 +263,11 @@ class EntityMentionTermFrequency(Model):
 
         m = m\
             .map(lambda (target, (span, text)): (target, text))\
-            .mapValues(lambda v: ngrams(v, self.idf_model.max_ngram))\
+            .mapValues(lambda v: ngrams(v, self.max_ngram))\
             .flatMap(lambda (target, tokens): (((target, t), 1) for t in tokens))\
             .reduceByKey(add)\
             .map(lambda ((target, token), count): (token, (target, count)))\
-            .leftOuterJoin(idfs)\
+            .leftOuterJoin(self.idf_model)\
             .filter(lambda (token, ((target, count), idf)): idf != None)\
             .map(lambda (token, ((target, count), idf)): (target, (token, math.sqrt(count)*idf)))\
             .groupByKey()
@@ -283,22 +288,22 @@ class EntityMentionTermFrequency(Model):
 
     @classmethod
     def add_arguments(cls, p):
-        TermIdfs.add_arguments(p)
+        TermIdfs.add_arguments(p) # todo: specify args or derive from idf model explicitly
+        p.add_argument('idf_model_path', metavar='IDF_MODEL')
         p.add_argument('--filter', dest='filter_target', required=False, default=None, metavar='FILTER')
         p.add_argument('--skip-norm', dest='normalize', action='store_false', default=True)
         return super(EntityMentionTermFrequency, cls).add_arguments(p)
 
-class TermEntityIndex(Model):
+class TermEntityIndex(DocumentModel):
     """ Build an inverted index mapping high idf terms to entities """
     def __init__(self, **kwargs):
         self.num_terms = kwargs.pop('num_terms')
         super(TermEntityIndex, self).__init__(**kwargs)
 
     def build(self, corpus):
-        num_terms = self.num_terms
         return corpus\
             .map(lambda item: (item['_id'], item['counts'].items()))\
-            .mapValues(lambda vs: sorted(vs, key=lambda (k,v): v, reverse=True)[:num_terms])\
+            .mapValues(lambda vs: sorted(vs, key=lambda (k,v): v, reverse=True)[:self.num_terms])\
             .flatMap(lambda (e, cs): ((t, (e, c)) for t, c in cs))\
             .groupByKey()
 
@@ -311,6 +316,6 @@ class TermEntityIndex(Model):
 
     @classmethod
     def add_arguments(cls, p):
-        TermIdfs.add_arguments(p)
+        TermIdfs.add_arguments(p) # todo: specify args or derive from idf model explicitly
         p.add_argument('--num-terms', dest='num_terms', required=False, default=3, type=int, metavar='NUM_TERMS')
         return super(TermEntityIndex, cls).add_arguments(p)

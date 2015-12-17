@@ -1,17 +1,14 @@
 from operator import add
 from itertools import chain
 
-from gensim.models.word2vec import Word2Vec
-from gensim.utils import RULE_KEEP, RULE_DISCARD
-
 from sift.models.text import EntityMentions
 from sift.util import ngrams
-from sift.dataset import Model
+from sift.dataset import DocumentModel
 
 import logging
 log = logging.getLogger()
 
-class EntitySkipGramEmbeddings(Model):
+class EntitySkipGramEmbeddings(DocumentModel):
     """ Learn distributed representations for words and entities in a corpus via skip-gram embedding """
     def __init__(self, **kwargs):
         self.dimensions = kwargs.pop('dimensions')
@@ -35,6 +32,8 @@ class EntitySkipGramEmbeddings(Model):
         return trim_rule
 
     def build(self, corpus):
+        from gensim.models.word2vec import Word2Vec
+        from gensim.utils import RULE_KEEP, RULE_DISCARD
         sentences = corpus\
             .flatMap(EntityMentions.iter_mentions)\
             .filter(lambda (target, (span, text)): target.startswith(self.filter_target))\

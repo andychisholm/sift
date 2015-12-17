@@ -33,8 +33,8 @@ class DatasetBuilder(object):
         log.info('Using spark master: %s', c.get('spark.master'))
         sc = SparkContext(conf=c)
 
-        m = self.model.prepare(sc)
-        m = self.model.build(m)
+        kwargs = self.model.prepare(sc)
+        m = self.model.build(**kwargs)
         m = self.model.format_items(m)
         m = self.formatter(m)
 

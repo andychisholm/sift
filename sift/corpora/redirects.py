@@ -14,9 +14,10 @@ class MapRedirects(Model):
         self.to_path = kwargs.pop('to_path')
 
     def prepare(self, sc):
-        from_rds = self.load(sc, self.from_path)
-        to_rds = self.load(sc, self.to_path)
-        return (from_rds, to_rds)
+        return {
+            "from_rds": self.load(sc, self.from_path).cache(),
+            "to_rds": self.load(sc, self.to_path).cache()
+        }
 
     @staticmethod
     def map_redirects(source, target):
@@ -26,10 +27,7 @@ class MapRedirects(Model):
             .map(lambda (t, (s, r)): (s, r or t))\
             .distinct()
 
-    def build(self, rds):
-        from_rds, to_rds = rds
-        from_rds, to_rds = from_rds.cache(), to_rds.cache()
-
+    def build(self, from_rds, to_rds):
         # map source of destination kb
         # e.g. (a > b) and (a > c) becomes (b > c)
         mapped_to = to_rds\

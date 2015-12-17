@@ -7,9 +7,9 @@ import logging
 log = logging.getLogger()
 
 class WikipediaCorpus(Model):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         self.dump_path = kwargs.pop('dump_path')
-        super(WikipediaCorpus, self).__init__(*args, **kwargs)
+        super(WikipediaCorpus, self).__init__(**kwargs)
 
     def prepare(self, sc):
         # dodgy yet effective text delimiter to split xml elements for the input rdd
@@ -24,44 +24,48 @@ class WikipediaCorpus(Model):
             "org.apache.hadoop.io.Text",
             conf = { "textinputformat.record.delimiter": PAGE_DELIMITER })
         
-        return raw\
-            .map(lambda (_, part): (part.find(PAGE_START), part))\
-            .filter(lambda (offset, _): offset >= 0)\
-            .map(lambda (offset, content): content[offset:]+PAGE_END)\
-            .map(wikicorpus.extract_page)
+        return {
+            "pages": raw\
+                .map(lambda (_, part): (part.find(PAGE_START), part))\
+                .filter(lambda (offset, _): offset >= 0)\
+                .map(lambda (offset, content): content[offset:]+PAGE_END)\
+                .map(wikicorpus.extract_page)
+        }
 
     @classmethod
     def add_arguments(cls, p):
-        p.add_argument('dump_path', metavar='WIKIDUMP_PATH')
         super(WikipediaCorpus, cls).add_arguments(p)
+        p.add_argument('dump_path', metavar='WIKIDUMP_PATH')
         return p
 
 class WikipediaArticles(WikipediaCorpus):
     """ Prepare a corpus of documents from wikipedia """
     def __init__(self, *args, **kwargs):
         self.redirects_path = kwargs.pop('redirects_path')
-        self.redirects = None
         super(WikipediaArticles, self).__init__(*args, **kwargs)
 
     def prepare(self, sc):
-        if self.redirects_path:
-            self.redirects = WikipediaRedirects.load(sc, self.redirects_path)
+        return super(WikipediaArticles, self)\
+            .prepare(sc)\
+            .extend({
+                "redirects": WikipediaRedirects.load(sc, self.redirects_path) if self.redirects_path else None
+            })
 
-        return super(WikipediaArticles, self).prepare(sc)
-
-    def build(self, corpus):
-        articles = corpus\
+    def build(self, pages, redirects = None):
+        articles = pages\
             .filter(lambda info: info[1] == '0' and info[3] == None and info[4])\
             .map(lambda info: (info[0], info[4]))\
             .mapValues(wikicorpus.remove_markup)\
             .mapValues(wikicorpus.extract_links)
 
-        if self.redirects:
-            # todo: likely easier to broadcast redirects and do a map-side join
+        if redirects:
+            articles.cache()
+
+            # redirect set is typically too large to be broadcasted for a map-side join
             articles = articles\
                 .flatMap(lambda (pid, (text, links)): ((t, (pid, span)) for t, span in links))\
-                .leftOuterJoin(self.redirects)\
-                .map(lambda (t, ((pid, span), r )): (pid, (r if r else t, span)))\
+                .leftOuterJoin(redirects)\
+                .map(lambda (t, ((pid, span), r)): (pid, (r if r else t, span)))\
                 .groupByKey()\
                 .mapValues(list)\
                 .join(articles)\
@@ -91,18 +95,15 @@ class WikipediaRedirects(WikipediaCorpus):
     """ Extract a set of redirects from wikipedia """
     def __init__(self, *args, **kwargs):
         self.resolve_transitive = kwargs.pop('resolve_transitive')
-        super(WikipediaRedirects, self).__init__(args, **kwargs)
+        super(WikipediaRedirects, self).__init__(*args, **kwargs)
 
-    def get_redirects(self, corpus):
+    def build(self, pages):
         pfx = wikicorpus.wikilink_prefix
-        return corpus\
+        redirects = pages\
             .filter(lambda info: info[3] != None)\
             .map(lambda info: (info[0], info[3]))\
             .mapValues(wikicorpus.normalise_wikilink)\
-            .map(lambda (s, t): (pfx+s, pfx+t)) 
-
-    def build(self, corpus):
-        redirects = self.get_redirects(corpus)
+            .map(lambda (s, t): (pfx+s, pfx+t))
 
         if self.resolve_transitive:
             redirects = redirects.cache()

@@ -4,13 +4,13 @@ from operator import add
 from collections import Counter
 from itertools import chain
 
-from sift.dataset import Model
+from sift.dataset import DocumentModel
 from sift.util import trim_link_subsection, trim_link_protocol, ngrams
 
 import logging
 log = logging.getLogger()
 
-class EntityCounts(Model):
+class EntityCounts(DocumentModel):
     """ Inlink counts """
     def __init__(self, **kwargs):
         self.threshold = kwargs.pop('threshold')
@@ -45,7 +45,7 @@ class EntityCounts(Model):
         p.add_argument('--filter', dest='filter_target', required=False, default=None)
         return super(EntityCounts, cls).add_arguments(p)
 
-class EntityNameCounts(Model):
+class EntityNameCounts(DocumentModel):
     """ Entity counts by name """
     def __init__(self, **kwargs):
         self.lowercase = kwargs.pop('lowercase')
@@ -67,12 +67,14 @@ class EntityNameCounts(Model):
                 yield anchor, target
 
     def build(self, corpus):
-        m = corpus.flatMap(self.iter_anchor_target_pairs)
+        m = corpus.flatMap(lambda d: self.iter_anchor_target_pairs(d))
 
         if self.filter_target:
             m = m.filter(lambda (a, t): t.startswith(self.filter_target))
 
-        return m.groupByKey().mapValues(Counter)
+        return m\
+            .groupByKey()\
+            .mapValues(Counter)
 
     def format_items(self, model):
         return model\
@@ -139,7 +141,7 @@ class NamePartCounts(Model):
         p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
         return super(NamePartCounts, cls).add_arguments(p)
 
-class EntityInlinks(Model):
+class EntityInlinks(DocumentModel):
     """ Comention counts """
     def build(self, corpus):
         return corpus\
