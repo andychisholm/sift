@@ -45,11 +45,11 @@ class WikipediaArticles(WikipediaCorpus):
         super(WikipediaArticles, self).__init__(*args, **kwargs)
 
     def prepare(self, sc):
-        return super(WikipediaArticles, self)\
-            .prepare(sc)\
-            .extend({
-                "redirects": WikipediaRedirects.load(sc, self.redirects_path) if self.redirects_path else None
-            })
+        p = super(WikipediaArticles, self).prepare(sc)
+        p.update({
+            "redirects": WikipediaRedirects.load(sc, self.redirects_path) if self.redirects_path else None
+        })
+        return p
 
     def build(self, pages, redirects = None):
         articles = pages\
