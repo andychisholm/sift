@@ -23,6 +23,7 @@ class EntitySkipGramEmbeddings(DocumentModel):
         super(EntitySkipGramEmbeddings, self).__init__(**kwargs)
 
     def get_trim_rule(self):
+        from gensim.utils import RULE_KEEP, RULE_DISCARD
         def trim_rule(word, count, min_count):
             if not word.startswith(self.filter_target):
                 return RULE_KEEP if count >= self.min_word_count else RULE_DISCARD
@@ -33,7 +34,6 @@ class EntitySkipGramEmbeddings(DocumentModel):
 
     def build(self, corpus):
         from gensim.models.word2vec import Word2Vec
-        from gensim.utils import RULE_KEEP, RULE_DISCARD
         sentences = corpus\
             .flatMap(EntityMentions.iter_mentions)\
             .filter(lambda (target, (span, text)): target.startswith(self.filter_target))\
