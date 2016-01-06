@@ -12,6 +12,8 @@ class BuildDocModel(DatasetBuilder):
             links.EntityInlinks,
             links.EntityVocab,
             links.NamePartCounts,
+            links.EntityComentions,
+            links.MappedEntityComentions,
             text.TermVocab,
             text.TermIdfs,
             text.TermFrequencies,

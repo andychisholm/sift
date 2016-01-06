@@ -156,7 +156,7 @@ class NamePartCounts(DocumentModel):
         return super(NamePartCounts, cls).add_arguments(p)
 
 class EntityInlinks(DocumentModel):
-    """ Comention counts """
+    """ Inlink sets for each entity """
     def build(self, corpus):
         return corpus\
             .flatMap(lambda d: ((d['_id'], l) for l in set(l['target'] for l in d['links'])))\
@@ -216,3 +216,53 @@ class EntityVocab(EntityCounts):
         p.add_argument('--min-rank', dest='min_rank', required=False, default=0, type=int, metavar='MIN_RANK')
         p.add_argument('--max-rank', dest='max_rank', required=False, default=int(1e5), type=int, metavar='MAX_RANK')
         return super(EntityVocab, cls).add_arguments(p)
+
+class EntityComentions(DocumentModel):
+    """ Entity comentions """
+    @staticmethod
+    def iter_unique_links(doc):
+        links = set()
+        for l in doc['links']:
+            link = trim_link_subsection(l['target'])
+            link = trim_link_protocol(link)
+            if link not in links:
+                yield link
+                links.add(link)
+
+    def build(self, corpus):
+        return corpus\
+            .map(lambda d: (d['_id'], list(self.iter_unique_links(d))))\
+            .filter(lambda (uri, es): es)
+
+    def format_items(self, model):
+        return model\
+            .map(lambda (uri, es): {
+                '_id': uri,
+                'entities': es
+            })
+
+class MappedEntityComentions(EntityComentions):
+    """ Entity comentions with entities mapped to a numeric index """
+    def __init__(self, **kwargs):
+        self.entity_vocab_path = kwargs.pop('entity_vocab_path')
+        super(MappedEntityComentions, self).__init__(**kwargs)
+
+    def prepare(self, sc):
+        log.info('Preparing mapped entity vocab...')
+        ev = EntityVocab\
+            .load(sc, self.entity_vocab_path)\
+            .map(lambda (term, (count, rank)): (term, rank))
+        self.ev = sc.broadcast(dict(ev.collect()))
+        return super(MappedEntityComentions, self).prepare(sc)
+
+    def build(self, corpus):
+        return super(MappedEntityComentions, self)\
+            .build(corpus)\
+            .map(lambda (uri, es): (uri, [self.ev.value[e] for e in es if e in self.ev.value]))\
+            .filter(lambda (uri, es): es)
+
+    @classmethod
+    def add_arguments(cls, p):
+        super(MappedEntityComentions, cls).add_arguments(p)
+        p.add_argument('entity_vocab_path', metavar='ENTITY_VOCAB_PATH')
+        return p
