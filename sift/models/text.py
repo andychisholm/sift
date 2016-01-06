@@ -66,14 +66,22 @@ class EntityMentions(DocumentModel):
             rhs_offset = (window - lhs_offset) - 1
             sent_start_idx = max(0, sent_start_idx - lhs_offset)
             sent_end_idx = min(len(sent_spans)-1, sent_end_idx + rhs_offset)
+            sent_offset = sent_spans[sent_start_idx].start
 
+            span = (link['start'] - sent_offset, link['stop'] - sent_offset)
             target = trim_link_subsection(link['target'])
             target = trim_link_protocol(target)
+            mention = doc['text'][sent_spans[sent_start_idx].start:sent_spans[sent_end_idx].stop]
 
-            sent_offset = sent_spans[sent_start_idx].start
-            span = (link['start'] - sent_offset, link['stop'] - sent_offset)
+            # filter out instances where the mention span is the entire sentence
+            if span == (0, len(mention)):
+                continue
+            # filter out list item sentences
+            sm = mention.strip()
+            if not sm or sm.startswith('*') or sm[-1] not in '.!?"\'':
+                continue
 
-            yield target, (span, doc['text'][sent_spans[sent_start_idx].start:sent_spans[sent_end_idx].stop])
+            yield target, (span, mention)
 
     def build(self, corpus):
         log.info('Building entity mention corpus with context window of %i sentences...', self.sentence_window)
