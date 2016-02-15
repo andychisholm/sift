@@ -1,7 +1,7 @@
 import urllib
 import ujson as json
 
-from sift.dataset import Model
+from sift.dataset import Model, DocumentModel
 from sift.util import trim_link_protocol, iter_sent_spans, ngrams
 
 import logging
@@ -71,4 +71,42 @@ class MapRedirects(Model):
         super(MapRedirects, cls).add_arguments(p)
         p.add_argument('from_path', metavar='FROM_REDIRECTS_PATH')
         p.add_argument('to_path', metavar='TO_REDIRECTS_PATH')
+        return p
+
+class RedirectDocuments(DocumentModel):
+    """ Map links in a corpus via a set of redirects """
+    def __init__(self, **kwargs):
+        self.redirect_path = kwargs.pop('redirects_path')
+        super(RedirectDocuments, self).__init__(**kwargs)
+
+    def prepare(self, sc):
+        params = super(RedirectDocuments, self).prepare(sc)
+        params['redirects'] = self.load(sc, self.redirect_path).cache()
+        return params
+
+    def build(self, corpus, redirects):
+        articles = corpus.map(lambda d: (d['_id'], d))
+
+        def map_doc_links(doc, rds):
+            for l in doc['links']:
+                l['target'] = rds[l['target']]
+            return doc
+
+        return corpus\
+            .map(lambda d: (d['_id'], set(l['target'] for l in d['links'])))\
+            .flatMap(lambda (pid, links): [(t, pid) for t in links])\
+            .leftOuterJoin(redirects)\
+            .map(lambda (t, (pid, r)): (pid, (t, r if r else t)))\
+            .groupByKey()\
+            .mapValues(dict)\
+            .join(articles)\
+            .map(lambda (pid, (rds, doc)): map_doc_links(doc, rds))
+
+    def format_items(self, model):
+        return model
+
+    @classmethod
+    def add_arguments(cls, p):
+        super(RedirectDocuments, cls).add_arguments(p)
+        p.add_argument('redirects_path', metavar='REDIRECTS_PATH')
         return p

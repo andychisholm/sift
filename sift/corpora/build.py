@@ -9,4 +9,5 @@ class BuildCorpus(DatasetBuilder):
             wikipedia.WikipediaArticles,
             wikipedia.WikipediaRedirects,
             redirects.MapRedirects,
+            redirects.RedirectDocuments,
         ]
