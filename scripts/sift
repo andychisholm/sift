@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-SPARK_URL="http://apache.mirror.digitalpacific.com.au/spark/spark-1.5.0/spark-1.5.0-bin-hadoop2.6.tgz"
+SPARK_URL="http://apache.mirror.digitalpacific.com.au/spark/spark-1.6.0/spark-1.6.0-bin-hadoop2.6.tgz"
 
 if [ -z "$SPARK_HOME" ]; then
     echo "SPARK_HOME is unset, using local Spark deployment..."
@@ -40,7 +40,8 @@ fi
 
 $SPARK_HOME/bin/spark-submit \
     $SPARK_MASTER_SW \
-    --driver-memory 8g \
-    --executor-memory 8g \
+    --driver-memory 16g \
+    --executor-memory 16g \
+    --conf spark.driver.maxResultSize=16g \
     sift/__main__.py \
     "$@"
