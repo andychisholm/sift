@@ -38,10 +38,11 @@ RE_IQ = re.compile(r"''\"(.*?)\"''")
 RE_I = re.compile(r"''([^']*)''")
 RE_QQ = re.compile(r'""(.*?)""')
 RE_SECT = re.compile(r'(==+)\s*(.*?)\s*\1')
+RE_EMPTY_PARENS = re.compile(r' \(\s*\)')
 
 RE_HTML_ENT = re.compile("&#?(\w+);")
 
-def remove_markup(text):
+def remove_markup((uri, text)):
     text = re.sub(RE_P2, "", text)
 
     # TODO: may be desirable to extract captions for files and images and insert them back into the document
@@ -66,6 +67,10 @@ def remove_markup(text):
             # todo: extract sections
             text = re.sub(RE_SECT, '\\2', text)
 
+            # inject link from the first bolded phrase as a mention of the article entity
+            # this heuristic holds for the vast majority of pages and is a wiki standard
+            text = re.sub(RE_B, '<a href="%s">\\1</a>' % uri, text, 1)
+
         text = re.sub(RE_P14, '', text) # remove categories
 
         # inject links
@@ -89,9 +94,10 @@ def remove_markup(text):
         if old == text or iters > 2: # stop if nothing changed between two iterations or after a fixed number of iterations
             break
 
+    text = re.sub(RE_EMPTY_PARENS, '', text) # remove empty parenthesis (usually left by stripped templates)
     text = text.replace('[', '').replace(']', '') # promote all remaining markup to plain text
     text = html_unescape(text.strip())
-    return text
+    return (uri, text)
 
 def remove_template(s):
     # Find the start and end position of each template by finding the opening '{{' and closing '}}'
@@ -175,8 +181,9 @@ def extract_page(content):
     redirect_elem = e.find('redirect')
     redirect = None if redirect_elem == None else redirect_elem.attrib['title']
     content = None if redirect != None else e.find('revision/text').text
+    uri = wikilink_prefix+title.replace(' ', '_')
 
-    return title.replace(' ', '_'), ns, pageid, redirect, content
+    return uri, ns, pageid, redirect, content
 
 def normalise_wikilink(s):
     s = s.replace(' ', '_').strip('_').strip()
