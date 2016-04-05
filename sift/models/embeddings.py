@@ -3,24 +3,33 @@ from itertools import chain
 
 from sift.models.text import EntityMentions
 from sift.util import ngrams
-from sift.dataset import DocumentModel
+from sift.dataset import ModelBuilder, Model
 
 from sift import logging
 log = logging.getLogger()
 
-class EntitySkipGramEmbeddings(DocumentModel):
+class EntitySkipGramEmbeddings(ModelBuilder, Model):
     """ Learn distributed representations for words and entities in a corpus via skip-gram embedding """
-    def __init__(self, **kwargs):
-        self.dimensions = kwargs.pop('dimensions')
-        self.lowercase = kwargs.pop('lowercase')
-        self.min_word_count = kwargs.pop('min_word_count')
-        self.min_entity_count = kwargs.pop('min_entity_count')
-        self.filter_target = kwargs.pop('entity_prefix')
-        self.exclude_words = kwargs.pop('exclude_words')
-        self.exclude_entities = kwargs.pop('exclude_entities')
-        self.workers = kwargs.pop('workers')
-        self.coalesce = kwargs.pop('coalesce')
-        super(EntitySkipGramEmbeddings, self).__init__(**kwargs)
+    def __init__(
+        self,
+        dimensions=100,
+        min_word_count=500,
+        min_entity_count=10,
+        entity_prefix='en.wikipedia.org/wiki/',
+        exclude_words=False,
+        exclude_entities=False,
+        workers=4,
+        coalesce=None,
+        *args, **kwargs):
+
+        self.dimensions = dimensions
+        self.min_word_count = min_word_count
+        self.min_entity_count = min_entity_count
+        self.filter_target = entity_prefix
+        self.exclude_words = exclude_words
+        self.exclude_entities = exclude_entities
+        self.workers = workers
+        self.coalesce = coalesce
 
     def get_trim_rule(self):
         from gensim.utils import RULE_KEEP, RULE_DISCARD
@@ -32,17 +41,13 @@ class EntitySkipGramEmbeddings(DocumentModel):
             return RULE_KEEP
         return trim_rule
 
-    def build(self, corpus):
+    def build(self, mentions):
         from gensim.models.word2vec import Word2Vec
-        sentences = corpus\
-            .flatMap(EntityMentions.iter_mentions)\
-            .filter(lambda (target, (span, text)): target.startswith(self.filter_target))\
-
-        if self.lowercase:
-            sentences = sentences.map(lambda (target, (span, text)): (target, (span, text.lower())))
+        sentences = mentions\
+            .filter(lambda (target, source, text, span): target.startswith(self.filter_target))\
 
         sentences = sentences\
-            .map(lambda (target, ((s,e), text)): list(chain(ngrams(text[:s],1), [target], ngrams(text[e:],1))))
+            .map(lambda (target, source, text, (s,e)): list(chain(ngrams(text[:s],1), [target], ngrams(text[e:],1))))
 
         if self.coalesce:
             sentences = sentences.coalesce(self.coalesce)
@@ -92,22 +97,9 @@ class EntitySkipGramEmbeddings(DocumentModel):
                     if (not self.exclude_entities and t.startswith(self.filter_target)) or
                        (not self.exclude_words and not t.startswith(self.filter_target)))
 
-    def format_items(self, model):
-        return model\
-            .map(lambda (entity, embedding): {
-                '_id': entity,
-                'embedding': embedding
-            })
-
-    @classmethod
-    def add_arguments(cls, p):
-        p.add_argument('--dimensions', required=False, default=100, type=int)
-        p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
-        p.add_argument('--min-word-count', required=False, default=500, type=int)
-        p.add_argument('--min-entity-count', required=False, default=10, type=int)
-        p.add_argument('--entity-prefix', dest='entity_prefix', required=False, default='en.wikipedia.org/wiki/')
-        p.add_argument('--exclude-words', dest='exclude_words', required=False, default=False, action='store_true')
-        p.add_argument('--exclude-entities', dest='exclude_entities', required=False, default=False, action='store_true')
-        p.add_argument('--workers', required=False, default=4, type=int)
-        p.add_argument('--coalesce', required=False, default=None, type=int)
-        return super(EntitySkipGramEmbeddings, cls).add_arguments(p)
+    @staticmethod
+    def format_item(self, (entity, embedding)):
+        return {
+            '_id': entity,
+            'embedding': embedding
+        }

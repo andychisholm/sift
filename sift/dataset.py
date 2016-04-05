@@ -1,33 +1,70 @@
 import ujson as json
 
-class Model(object):
-    def __init__(self, **kwargs):
-        pass
+class ModelBuilder(object):
+    def __init__(self, *args, **kwargs): pass
 
-    def prepare(self, sc):
-        raise NotImplementedError
+    def __call__(self, *args, **kwargs):
+        return self.build(*args, **kwargs).map(self.format_item)
 
     def build(self, *args, **kwargs):
         raise NotImplementedError
 
-    def format_items(self, dataset):
+class Model(object):
+    @staticmethod
+    def format_item(item):
         raise NotImplementedError
 
-    @classmethod
-    def add_arguments(cls, p):
-        p.set_defaults(modelcls=cls)
-        return p
+    @staticmethod
+    def load(sc, path, fmt=json):
+        return sc.textFile(path).map(json.loads)
 
-class DocumentModel(Model):
-    def __init__(self, **kwargs):
-        self.corpus_path = kwargs.pop('corpus_path')
+    @staticmethod
+    def save(m, path, fmt=json):
+        m.map(json.dumps).saveAsTextFile(path, 'org.apache.hadoop.io.compress.GzipCodec')
 
-    def prepare(self, sc):
+class Redirects(Model):
+    @staticmethod
+    def format_item((source, target)):
+        return {'_id': source, 'target': target}
+
+class Vocab(Model):
+    @staticmethod
+    def format_item((term, (count, rank))):
         return {
-            'corpus': sc.textFile(self.corpus_path).map(json.loads)
+            '_id': term,
+            'count': count,
+            'rank': rank
         }
 
-    @classmethod
-    def add_arguments(cls, p):
-        p.add_argument('corpus_path', metavar='CORPUS_PATH')
-        return super(DocumentModel, cls).add_arguments(p)
+class Mentions(Model):
+    @staticmethod
+    def format_item((target, source, text, span)):
+        return {
+            '_id': target,
+            'source': source,
+            'text': text,
+            'span': span
+        }
+
+class IndexedMentions(Model):
+    @staticmethod
+    def format_item((target, source, text, span)):
+        return {
+            '_id': target,
+            'source': source,
+            'sequence': text,
+            'span': span
+        }
+
+class Documents(Model):
+    @staticmethod
+    def format_item((uri, (text, links))):
+        return {
+            '_id': uri,
+            'text': text,
+            'links': [{
+                 'target': target,
+                 'start': span.start,
+                 'stop': span.stop
+             } for target, span in links]
+        }

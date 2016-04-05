@@ -6,49 +6,41 @@ from operator import add
 from collections import Counter
 
 from sift.models.links import EntityVocab
-from sift.dataset import DocumentModel
+from sift.dataset import ModelBuilder, Documents, Model, Mentions, IndexedMentions, Vocab
 from sift.util import ngrams, iter_sent_spans, trim_link_subsection, trim_link_protocol
 
 from sift import logging
 log = logging.getLogger()
 
-class TermFrequencies(DocumentModel):
+class TermFrequencies(ModelBuilder, Model):
     """ Get term frequencies over a corpus """
-    def __init__(self, **kwargs):
-        self.lowercase = kwargs.pop('lowercase')
-        self.max_ngram = kwargs.pop('max_ngram')
+    def __init__(self, lowercase, max_ngram):
+        self.lowercase = lowercase
+        self.max_ngram = max_ngram
 
-    def build(self, corpus):
-        max_ngram = self.max_ngram
-
-        m = corpus.map(lambda d: d['text'])
+    def build(self, docs):
+        m = docs.map(lambda d: d['text'])
         if self.lowercase:
             m = m.map(unicode.lower)
 
         return m\
-            .flatMap(lambda text: ngrams(text, max_ngram))\
+            .flatMap(lambda text: ngrams(text, self.max_ngram))\
             .map(lambda t: (t, 1))\
             .reduceByKey(add)\
             .filter(lambda (k,v): v > 1)
 
-    def format_items(self, model):
-        return model\
-            .map(lambda (term, count): {
-                '_id': term,
-                'count': count,
-            })
+    @staticmethod
+    def format_item(self, (term, count)):
+        return {
+            '_id': term,
+            'count': count,
+        }
 
-    @classmethod
-    def add_arguments(cls, p):
-        p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
-        p.add_argument('--max-ngram', dest='max_ngram', required=False, default=1, type=int, metavar='MAX_NGRAM')
-        return super(TermFrequencies, cls).add_arguments(p)
-
-class EntityMentions(DocumentModel):
+class EntityMentions(ModelBuilder, Mentions):
     """ Get aggregated sentence context around links in a corpus """
-    def __init__(self, **kwargs):
-        self.sentence_window = kwargs.pop('sentence_window')
-        super(EntityMentions, self).__init__(**kwargs)
+    def __init__(self, sentence_window = 1, lowercase=False):
+        self.sentence_window = sentence_window
+        self.lowercase = lowercase
 
     @staticmethod
     def iter_mentions(doc, window = 1):
@@ -76,91 +68,49 @@ class EntityMentions(DocumentModel):
             # filter out instances where the mention span is the entire sentence
             if span == (0, len(mention)):
                 continue
+
             # filter out list item sentences
             sm = mention.strip()
             if not sm or sm.startswith('*') or sm[-1] not in '.!?"\'':
                 continue
 
-            yield target, (span, mention)
+            yield target, doc['_id'], mention, span
 
-    def build(self, corpus):
-        log.info('Building entity mention corpus with context window of %i sentences...', self.sentence_window)
-        return corpus\
-            .flatMap(lambda d: self.iter_mentions(d, self.sentence_window))\
-            .groupByKey()\
-            .mapValues(list)
+    def build(self, docs):
+        m = docs.flatMap(lambda d: self.iter_mentions(d, self.sentence_window))
+        if self.lowercase:
+            m = m.map(lambda (t, src, m, s): (t, src, m.lower(), s))
+        return m
 
-    def format_items(self, model):
-        return model\
-            .map(lambda (link, mentions): {
-                '_id': link,
-                'mentions': mentions,
-            })
+class IndexMappedMentions(EntityMentions, IndexedMentions):
+    """ Entity mention corpus with terms mapped to numeric indexes """
+    def build(self, sc, docs, vocab):
+        tv = sc.broadcast(dict(vocab.map(lambda r: (r['_id'], r['rank'])).collect()))
+        return super(IndexMappedMentions, self)\
+            .build(docs)\
+            .map(lambda m: self.transform(m, tv))
 
-    @classmethod
-    def add_arguments(cls, p):
-        p.add_argument('--window', dest='sentence_window', required=False, default=1, type=int, metavar='SENTENCE_WINDOW')
-        return super(EntityMentions, cls).add_arguments(p)
+    @staticmethod
+    def transform((target, source, text, span), vocab):
+        vocab = vocab.value
 
-class MappedEntityMentions(EntityMentions):
-    """ Entity mention corpus with terms and entities mapped to numeric indexes """
-    def __init__(self, **kwargs):
-        self.term_vocab_path = kwargs.pop('term_vocab_path')
-        self.entity_vocab_path = kwargs.pop('entity_vocab_path')
-        super(MappedEntityMentions, self).__init__(**kwargs)
-
-    def prepare(self, sc):
-        log.info('Preparing mapped entity mentions...')
-        tv = TermVocab\
-            .load(sc, self.term_vocab_path)\
-            .map(lambda (term, (count, rank)): (term, rank))
-        tvd = dict(tv.collect())
-        self.oov_id = len(tvd) - 1
-        self.tv = sc.broadcast(tvd)
-
-        ev = EntityVocab\
-            .load(sc, self.entity_vocab_path)\
-            .map(lambda (term, (count, rank)): (term, rank))
-
-        self.ev = sc.broadcast(dict(ev.collect()))
-        return super(MappedEntityMentions, self).prepare(sc)
-
-    def map_mention(self, mention):
-        (start, stop), text = mention
-
+        start, stop = span
         pre = list(ngrams(text[:start], 1))
         ins = list(ngrams(text[start:stop], 1))
         post = list(ngrams(text[stop:], 1))
+        indexes = [vocab.get(t, len(vocab)-1) for t in (pre+ins+post)]
 
-        return (len(pre), len(pre)+len(ins)), pre+ins+post
+        return target, source, indexes, (len(pre), len(pre)+len(ins))
 
-    def build(self, corpus):
-        return super(MappedEntityMentions, self)\
-            .build(corpus)\
-            .map(lambda (target, mentions): (self.ev.value.get(target, -1), [self.map_mention(m) for m in mentions]))\
-            .filter(lambda (target, mentions): target != -1)\
-            .mapValues(lambda mentions: [(s, [self.tv.value.get(t, self.oov_id) for t in m]) for s, m in mentions])
-
-    @classmethod
-    def add_arguments(cls, p):
-        super(MappedEntityMentions, cls).add_arguments(p)
-        p.add_argument('term_vocab_path', metavar='TERM_VOCAB_PATH')
-        p.add_argument('entity_vocab_path', metavar='ENTITY_VOCAB_PATH')
-        return p
-
-class TermDocumentFrequencies(DocumentModel):
+class TermDocumentFrequencies(ModelBuilder):
     """ Get document frequencies for terms in a corpus """
-    def __init__(self, **kwargs):
-        self.lowercase = kwargs.pop('lowercase')
-        self.max_ngram = kwargs.pop('max_ngram')
-        self.min_df = kwargs.pop('min_df')
-        super(TermDocumentFrequencies, self).__init__(**kwargs)
+    def __init__(self, lowercase=False, max_ngram=1, min_df=2):
+        self.lowercase = lowercase
+        self.max_ngram = max_ngram
+        self.min_df = min_df
 
-    def build(self, corpus):
-        log.info('Building df model: max-ngram=%i, min-df=%i', self.max_ngram, self.min_df)
-
-        m = corpus.map(lambda d: d['text'])
-
+    def build(self, docs):
+        m = docs.map(lambda d: d['text'])
         if self.lowercase:
             m = m.map(lambda text: text.lower())
 
@@ -170,25 +120,16 @@ class TermDocumentFrequencies(DocumentModel):
             .reduceByKey(add)\
             .filter(lambda (k,v): v > self.min_df)
 
-    @classmethod
-    def add_arguments(cls, p):
-        p.add_argument('--lowercase', dest='lowercase', required=False, default=False, action='store_true')
-        p.add_argument('--max-ngram', dest='max_ngram', required=False, default=1, type=int, metavar='MAX_NGRAM')
-        p.add_argument('--min-df', dest='min_df', required=False, default=1, type=int, metavar='MIN_DF')
-        return super(TermDocumentFrequencies, cls).add_arguments(p)
-
-class TermVocab(TermDocumentFrequencies):
+class TermVocab(TermDocumentFrequencies, Vocab):
     """ Generate unique indexes for termed based on their document frequency ranking. """
-    def __init__(self, **kwargs):
-        self.min_rank = kwargs.pop('min_rank')
-        self.max_rank = kwargs.pop('max_rank')
-        super(TermVocab, self).__init__(**kwargs)
+    def __init__(self, max_rank, min_rank=100, *args, **kwargs):
+        self.max_rank = max_rank
+        self.min_rank = min_rank
+        super(TermVocab, self).__init__(*args, **kwargs)
 
-    def build(self, corpus):
-        log.info('Building vocab: df rank range=(%i, %i)', self.min_rank, self.max_rank)
-
+    def build(self, docs):
         m = super(TermVocab, self)\
-            .build(corpus)\
+            .build(docs)\
             .map(lambda (t, df): (df, t))\
             .sortByKey(False)\
             .zipWithIndex()\
@@ -200,29 +141,15 @@ class TermVocab(TermDocumentFrequencies):
             m = m.filter(lambda (t, (df, idx)): idx < self.max_rank)
         return m
 
-    def format_items(model):
-        return model\
-            .map(lambda (term, (f, idx)): {
-                '_id': term,
-                'count': f,
-                'rank': idx
-            })
-
     @staticmethod
-    def load(sc, path, fmt=json):
-        log.info('Loading vocab: %s ...', path)
-        return sc\
-            .textFile(path)\
-            .map(fmt.loads)\
-            .map(lambda r: (r['_id'], (r['count'], r['rank'])))
+    def format_item((term, (f, idx))):
+        return {
+            '_id': term,
+            'count': f,
+            'rank': idx
+        }
 
-    @classmethod
-    def add_arguments(cls, p):
-        p.add_argument('--min-rank', dest='min_rank', required=False, default=100, type=int, metavar='MIN_RANK')
-        p.add_argument('--max-rank', dest='max_rank', required=False, default=int(5e5), type=int, metavar='MAX_RANK')
-        return super(TermVocab, cls).add_arguments(p)
-
-class TermIdfs(TermDocumentFrequencies):
+class TermIdfs(TermDocumentFrequencies, Model):
     """ Compute tf-idf weighted token counts over sentence contexts around links in a corpus """
     def build(self, corpus):
         log.info('Counting documents in corpus...')
@@ -234,96 +161,41 @@ class TermIdfs(TermDocumentFrequencies):
             .map(lambda (term, (df, rank)): (term, df))\
             .mapValues(lambda df: math.log(N/df))
 
-    def format_items(self, model):
-        return model\
-            .map(lambda (term, idf): {
-                '_id': term,
-                'idf': idf,
-            })
-
     @staticmethod
-    def load(sc, path, fmt=json):
-        log.info('Loading idf model: %s...', path)
-        return sc\
-            .textFile(path)\
-            .map(fmt.loads)\
-            .map(lambda r: (r['_id'], r['idf']))
+    def format_item((term, idf)):
+        return {
+            '_id': term,
+            'idf': idf,
+        }
 
-class EntityMentionTermFrequency(DocumentModel):
+class EntityMentionTermFrequency(ModelBuilder, Model):
     """ Compute tf-idf weighted token counts over sentence contexts around links in a corpus """
-    def __init__(self, **kwargs):
-        self.idf_model_path = kwargs.pop('idf_model_path')
-        self.normalize = kwargs.pop('normalize')
-        self.filter_target = kwargs.pop('filter_target')
-        self.max_ngram = kwargs.pop('max_ngram')
-        super(EntityMentionTermFrequency, self).__init__(**kwargs)
+    def __init__(self, max_ngram=1, normalize = True):
+        self.max_ngram = max_ngram
+        self.normalize = normalize
 
-    def prepare(self, sc):
-        self.idf_model = TermIdfs.load(self.idf_model_path)
-        return super(EntityMenitonTermFrequency, self).prepare(sc)
-
-    def build(self, corpus):
-        m = corpus.flatMap(EntityMentions.iter_mentions)
-
-        if self.filter_target:
-            log.info('Filtering mentions targeting: %s', self.filter_target)
-            m = m.filter(lambda (target, _): target.startswith(self.filter_target))
-
-        m = m\
+    def build(self, mentions, idfs):
+        m = mentions\
             .map(lambda (target, (span, text)): (target, text))\
             .mapValues(lambda v: ngrams(v, self.max_ngram))\
             .flatMap(lambda (target, tokens): (((target, t), 1) for t in tokens))\
             .reduceByKey(add)\
             .map(lambda ((target, token), count): (token, (target, count)))\
-            .leftOuterJoin(self.idf_model)\
+            .leftOuterJoin(idfs)\
             .filter(lambda (token, ((target, count), idf)): idf != None)\
             .map(lambda (token, ((target, count), idf)): (target, (token, math.sqrt(count)*idf)))\
             .groupByKey()
 
         return m.mapValues(self.normalize_counts if self.normalize else list)
 
-    def format_items(self, model):
-        return model\
-            .map(lambda (link, counts): {
-                '_id': link,
-                'counts': dict(counts),
-            })
-
     @staticmethod
     def normalize_counts(counts):
         norm = numpy.linalg.norm([v for _, v in counts])
         return [(k, v/norm) for k, v in counts]
 
-    @classmethod
-    def add_arguments(cls, p):
-        TermIdfs.add_arguments(p) # todo: specify args or derive from idf model explicitly
-        p.add_argument('idf_model_path', metavar='IDF_MODEL')
-        p.add_argument('--filter', dest='filter_target', required=False, default=None, metavar='FILTER')
-        p.add_argument('--skip-norm', dest='normalize', action='store_false', default=True)
-        return super(EntityMentionTermFrequency, cls).add_arguments(p)
-
-class TermEntityIndex(DocumentModel):
-    """ Build an inverted index mapping high idf terms to entities """
-    def __init__(self, **kwargs):
-        self.num_terms = kwargs.pop('num_terms')
-        super(TermEntityIndex, self).__init__(**kwargs)
-
-    def build(self, corpus):
-        return corpus\
-            .map(lambda item: (item['_id'], item['counts'].items()))\
-            .mapValues(lambda vs: sorted(vs, key=lambda (k,v): v, reverse=True)[:self.num_terms])\
-            .flatMap(lambda (e, cs): ((t, (e, c)) for t, c in cs))\
-            .groupByKey()
-
-    def format_items(self, model):
-        return model\
-            .map(lambda (term, entities): {
-                '_id': term,
-                'entities': dict(entities),
-            })
-
-    @classmethod
-    def add_arguments(cls, p):
-        TermIdfs.add_arguments(p) # todo: specify args or derive from idf model explicitly
-        p.add_argument('--num-terms', dest='num_terms', required=False, default=3, type=int, metavar='NUM_TERMS')
-        return super(TermEntityIndex, cls).add_arguments(p)
+    @staticmethod
+    def format_item((link, counts)):
+        return {
+            '_id': link,
+            'counts': dict(counts),
+        }
