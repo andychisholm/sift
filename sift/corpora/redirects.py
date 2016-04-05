@@ -4,7 +4,7 @@ import ujson as json
 from sift.dataset import Model, DocumentModel
 from sift.util import trim_link_protocol, iter_sent_spans, ngrams
 
-import logging
+from sift import logging
 log = logging.getLogger()
 
 class MapRedirects(Model):

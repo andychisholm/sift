@@ -7,7 +7,7 @@ from itertools import chain
 from sift.dataset import DocumentModel
 from sift.util import trim_link_subsection, trim_link_protocol, ngrams
 
-import logging
+from sift import logging
 log = logging.getLogger()
 
 class EntityCounts(DocumentModel):

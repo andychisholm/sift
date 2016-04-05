@@ -5,7 +5,7 @@ from sift.models.text import EntityMentions
 from sift.util import ngrams
 from sift.dataset import DocumentModel
 
-import logging
+from sift import logging
 log = logging.getLogger()
 
 class EntitySkipGramEmbeddings(DocumentModel):

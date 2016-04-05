@@ -9,7 +9,7 @@ from sift.models.links import EntityVocab
 from sift.dataset import DocumentModel
 from sift.util import ngrams, iter_sent_spans, trim_link_subsection, trim_link_protocol
 
-import logging
+from sift import logging
 log = logging.getLogger()
 
 class TermFrequencies(DocumentModel):

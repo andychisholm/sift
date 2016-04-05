@@ -3,7 +3,7 @@ import ujson as json
 from sift.corpora import wikicorpus
 from sift.dataset import Model
 
-import logging
+from sift import logging
 log = logging.getLogger()
 
 class WikipediaCorpus(Model):
