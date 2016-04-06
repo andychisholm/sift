@@ -19,8 +19,6 @@ Out of the box, you can:
 
 ### Install
 ```bash
-virtualenv ve
-. ve/bin/activate
 pip install git+http://git@github.com/wikilinks/sift.git
 ```
 
