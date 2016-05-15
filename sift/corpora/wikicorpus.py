@@ -26,7 +26,9 @@ RE_P7 = re.compile('\n\[\[[iI]mage(.*?)(\|.*?)*\|(.*?)\]\]', re.UNICODE) # keep 
 RE_P8 = re.compile('\n\[\[[fF]ile(.*?)(\|.*?)*\|(.*?)\]\]', re.UNICODE) # keep description of files
 RE_P9 = re.compile('<nowiki([> ].*?)(</nowiki>|/>)', re.DOTALL | re.UNICODE) # outside links
 RE_P10 = re.compile('<math([> ].*?)(</math>|/>)', re.DOTALL | re.UNICODE) # math content
-RE_P11 = re.compile('<(.*?)>', re.DOTALL | re.UNICODE) # all other tags
+
+RE_P11 = re.compile('<(?!(a |\/a>))(.*?)>', re.DOTALL | re.UNICODE) # all tags except <a> and
+
 RE_P12 = re.compile('\n(({\|)|(\|-)|(\|}))(.*?)(?=\n)', re.UNICODE) # table formatting
 RE_P13 = re.compile('\n(\||\!)(.*?\|)*([^|]*?)', re.UNICODE) # table cell formatting
 RE_P14 = re.compile('\[\[Category:[^][]*\]\]', re.UNICODE) # categories
@@ -40,10 +42,15 @@ RE_QQ = re.compile(r'""(.*?)""')
 RE_SECT = re.compile(r'(==+)\s*(.*?)\s*\1')
 RE_EMPTY_PARENS = re.compile(r' \(\s*\)')
 
+# extraction patterns for citations
+RE_P1_EX = re.compile(r'<ref[^>]*>{{[Cc]ite ([^>]+?)}}</ref>', re.DOTALL | re.UNICODE)
+RE_P1_EX_NO_TPL = re.compile(r'<ref[^>]*>(?!{{)([^>]+?)</ref>', re.DOTALL | re.UNICODE)
+
 RE_HTML_ENT = re.compile("&#?(\w+);")
 
 def remove_markup((uri, text)):
     text = re.sub(RE_P2, "", text)
+    text = extract_citations(text)
 
     # TODO: may be desirable to extract captions for files and images and insert them back into the document
     text = remove_template(text)
@@ -98,6 +105,34 @@ def remove_markup((uri, text)):
     text = text.replace('[', '').replace(']', '') # promote all remaining markup to plain text
     text = html_unescape(text.strip())
     return (uri, text)
+
+def extract_citations(text):
+    # convert <ref> citations to links
+    def _replace_template_citations(match):
+        template = match.group(1)
+        template = '|'.join(part for part in template.split('|') if not '[[' in part)
+        return r'<a href="'+template+'" data-type="cite"></a>'
+    text = re.sub(RE_P1_EX, _replace_template_citations, text)
+
+    def _replace_citations(match):
+        original_content = match.group(1)
+
+        # strip links
+        content = re.sub(RE_P5, '\\3', original_content)
+        content = re.sub(RE_P6, '\\2', content)
+        content = re.sub(RE_P6_ex, '\\1', content)
+        template = 'simple|title='+content
+
+        # extract urls
+        links = re.sub(RE_P5, '|\\2|', original_content)
+        links = re.sub(RE_P5, '|%s\\1|' % wikilink_prefix, links)
+        links = re.sub(RE_P6_ex, '|%s\\1|' % wikilink_prefix, links)
+        links = [l for l in links.split('|') if l]
+        if links:
+            template += '|url='+links[0]
+        return r'<a href="'+template+'" data-type="cite"></a>'
+    text = re.sub(RE_P1_EX_NO_TPL, _replace_citations, text) # convert <ref> citations to links
+    return text
 
 def remove_template(s):
     # Find the start and end position of each template by finding the opening '{{' and closing '}}'
@@ -197,15 +232,36 @@ def normalise_link(s):
     return s 
 
 def extract_links(content):
-    links_re = re.compile(r'<a href="(.+?)">(.+?)</a>')
+    links_re = re.compile(r'<a href="(?P<target>.+?)"( data-type="(?P<type>\w+)")?>(?P<anchor>.*?)</a>')
 
     links = []
+    cites = []
     offset = 0
     for match in list(links_re.finditer(content)):
-        target = match.group(1)
-        anchor = match.group(2) 
+        groups = match.groupdict()
+        target = groups['target']
+        anchor = groups['anchor']
+        print 'ROFL', groups
+        link_type = groups['type'] or 'mention'
+
         start = match.start() - offset
         offset += len(match.group())-len(anchor)
-        links.append((normalise_link(target), slice(start, start+len(anchor))))
 
-    return links_re.sub(r'\2', content), links
+        if link_type == 'mention':
+            target = normalise_link(target)
+            links.append((target, slice(start, start+len(anchor))))
+        elif link_type == 'cite':
+            cite = {}
+            for i, part in enumerate(target.split('|')):
+                if i == 0:
+                    k, v = 'type', part
+                else:
+                    idx = part.find('=')
+                    if idx != -1:
+                        k = part[:idx]
+                        v = part[idx+1:].strip()
+                cite[k] = v
+            cite['offset'] = start
+            cites.append(cite)
+
+    return links_re.sub(r'\g<anchor>', content), links, cites

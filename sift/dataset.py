@@ -58,10 +58,11 @@ class IndexedMentions(Model):
 
 class Documents(Model):
     @staticmethod
-    def format_item((uri, (text, links))):
+    def format_item((uri, (text, links, cites))):
         return {
             '_id': uri,
             'text': text,
+            'citations': cites,
             'links': [{
                  'target': target,
                  'start': span.start,

@@ -80,12 +80,12 @@ class WikipediaArticles(ModelBuilder, Documents):
 
             # redirect set is typically too large to be broadcasted for a map-side join
             articles = articles\
-                .flatMap(lambda (pid, (text, links)): ((t, (pid, span)) for t, span in links))\
+                .flatMap(lambda (pid, (text, links, cites)): ((t, (pid, span)) for t, span in links))\
                 .leftOuterJoin(redirects)\
                 .map(lambda (t, ((pid, span), r)): (pid, (r if r else t, span)))\
                 .groupByKey()\
                 .mapValues(list)\
                 .join(articles)\
-                .map(lambda (pid, (links, (text, _))): (pid, (text, links)))
+                .map(lambda (pid, (links, (text, _, cites))): (pid, (text, links, cites)))
 
         return articles
