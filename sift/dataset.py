@@ -68,3 +68,11 @@ class Documents(Model):
                  'stop': span.stop
              } for target, span in links]
         }
+
+class Relations(Model):
+    @staticmethod
+    def format_item((uri, relations)):
+        return {
+            '_id': uri,
+            'relations': relations
+        }
