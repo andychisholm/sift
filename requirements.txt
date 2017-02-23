@@ -3,3 +3,5 @@ numpy
 pattern
 gensim
 msgpack-python
+findspark
+jupyter

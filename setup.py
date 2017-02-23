@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-__version__ = '0.2.1'
+__version__ = '0.3.0'
 __pkg_name__ = 'textsift'
 
 setup(
@@ -12,6 +12,7 @@ setup(
     license = 'MIT',
     url = 'https://github.com/wikilinks/sift',
     scripts = [
+        'scripts/sift-notebook',
         'scripts/download-wikipedia'
     ],
     classifiers=[
