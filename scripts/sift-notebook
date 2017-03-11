@@ -1,0 +1,41 @@
+#!/bin/bash
+set -e
+
+SPARK_URL="http://d3kbcqa49mib13.cloudfront.net/spark-2.1.0-bin-hadoop2.7.tgz"
+
+if [ -z "$SPARK_HOME" ]; then
+    echo "SPARK_HOME is unset, using local Spark deployment..."
+    if [ ! -d "spark" ]; then
+        read -p "Would you like to download spark and run in standalone mode? " -n 1 -r
+        if [[ ! $REPLY =~ ^[Yy]$ ]]
+        then
+            exit 1
+        fi
+        echo
+        echo "Downloading spark for local standalone deployment..."
+        mkdir spark
+        curl $SPARK_URL | tar zx -C spark --strip-components=1
+        
+        echo "Updating spark logger config..."
+        pushd spark/conf > /dev/null
+        sed -e 's/log4j.rootCategory=INFO/log4j.rootCategory=WARN/' log4j.properties.template > log4j.properties
+        popd > /dev/null
+    fi
+    export SPARK_HOME=$(pwd)/spark
+    if [ -z "$SPARK_MASTER" ]; then
+        SPARK_MASTER=local[*]
+    fi
+fi
+
+if [ ! -z "$VIRTUAL_ENV" ]; then
+    export PYSPARK_PYTHON=$VIRTUAL_ENV/bin/python
+else
+    export PYSPARK_PYTHON=$(pwd)/ve/bin/python
+fi
+
+SPARK_MASTER_SW=
+if [ ! -z "$SPARK_MASTER" ]; then
+    SPARK_MASTER_SW="--master $SPARK_MASTER"
+fi
+
+PYTHONPATH=$PYTHONPATH:$(pwd) jupyter notebook "$@"
