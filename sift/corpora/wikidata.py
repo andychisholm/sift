@@ -35,14 +35,15 @@ class WikidataRelations(ModelBuilder, Relations):
     def iter_relations_for_item(item):
         for pid, statements in item.get('claims', {}).iteritems():
             for statement in statements:
-                datatype = statement['mainsnak'].get('datatype', None)
-                if datatype == 'wikibase-item':
-                    tid = statement['mainsnak']['datavalue']['value']['numeric-id']
-                    yield pid, int(tid)
-                elif datatype == 'url':
-                    yield pid, statement['mainsnak']['datavalue']['value']
-                elif datatype == 'time':
-                    yield pid, statement['mainsnak']['datavalue']['value']['time']
+                if statement['mainsnak'].get('snaktype') == 'value':
+                    datatype = statement['mainsnak'].get('datatype')
+                    if datatype == 'wikibase-item':
+                        tid = statement['mainsnak']['datavalue']['value']['numeric-id']
+                        yield pid, int(tid)
+                    elif datatype == 'url':
+                        yield pid, statement['mainsnak']['datavalue']['value']
+                    elif datatype == 'time':
+                        yield pid, statement['mainsnak']['datavalue']['value']['time']
 
     def build(self, corpus):
         entities = corpus\
