@@ -2,9 +2,10 @@ import re
 from pattern import en
 
 # todo: use spacy tokenization
-def ngrams(text, max_n=1, min_n=1):
+def ngrams(text, max_n=1, min_n=1, strip_punctuation=True):
+    pattern_args = {} if strip_punctuation else {'punctuation':''}
     for i in xrange(min_n-1,max_n):
-        for n in en.ngrams(text, n=i+1):
+        for n in en.ngrams(text, n=i+1, **pattern_args):
             yield ' '.join(n)
 
 
