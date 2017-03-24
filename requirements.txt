@@ -5,3 +5,6 @@ gensim
 msgpack-python
 findspark
 jupyter
+spacy
+readability-lxml
+beautifulsoup4
