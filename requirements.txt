@@ -8,3 +8,4 @@ jupyter
 spacy
 readability-lxml
 beautifulsoup4
+warc

@@ -28,7 +28,11 @@ setup(
         "numpy",
         "pattern",
         "gensim",
-        "msgpack-python"
+        "msgpack-python",
+        "readability-lxml",
+        "beautifulsoup4",
+        "spacy",
+        "warc"
     ],
     test_suite = __pkg_name__ + '.test'
 )
