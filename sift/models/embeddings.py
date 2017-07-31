@@ -89,7 +89,7 @@ class EntitySkipGramEmbeddings(ModelBuilder, Model):
             vocab_sz += total_words
 
         log.info('Parallelizing %i learned embeddings...', vocab_sz)
-        return corpus\
+        return mentions\
             .context\
             .parallelize(
                 (t, model.syn0[vi.index].tolist())
@@ -98,7 +98,7 @@ class EntitySkipGramEmbeddings(ModelBuilder, Model):
                        (not self.exclude_words and not t.startswith(self.filter_target)))
 
     @staticmethod
-    def format_item(self, (entity, embedding)):
+    def format_item((entity, embedding)):
         return {
             '_id': entity,
             'embedding': embedding
