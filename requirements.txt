@@ -9,3 +9,4 @@ spacy
 readability-lxml
 beautifulsoup4
 warc
+pycld2

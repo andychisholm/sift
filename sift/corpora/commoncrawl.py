@@ -6,12 +6,14 @@ from readability.readability import Unparseable
 from bs4 import BeautifulSoup
 from sift.dataset import ModelBuilder, Model, Documents
 from sift import logging
+import pycld2 as cld
+from pycld2 import error as cld_error
 
 LINKS_RE = re.compile(r'<a href="(.+?)">(.+?)</a>')
 
 class WARCCorpus(ModelBuilder, Model):
-    def __init__(self, partitions=4096):
-        self.partitions = partitions
+    def __init__(self, language=None):
+        self.language = language
 
     @staticmethod
     def parse_warc_content(buf):
@@ -25,9 +27,19 @@ class WARCCorpus(ModelBuilder, Model):
             if content_start != -1:
                 yield record.url, payload[content_start+4:]
 
+    @staticmethod
+    def try_get_lang(content):
+        try:
+            reliable, _, details = cld.detect(content)
+            if reliable:
+                return details[0][1]
+        except cld_error:
+            pass
+        return None
+
     def build(self, sc, path):
         PAGE_DELIMITER = "WARC/1.0\r\n"
-        return sc\
+        warcs = sc\
             .newAPIHadoopFile(
                 path,
                 "org.apache.hadoop.mapreduce.lib.input.TextInputFormat",
@@ -37,6 +49,10 @@ class WARCCorpus(ModelBuilder, Model):
             .filter(lambda (_, part): part)\
             .map(lambda (_, part): PAGE_DELIMITER+part.encode('utf-8'))\
             .flatMap(self.parse_warc_content)
+
+        if self.language != None:
+            warcs = warcs.filter(lambda (url, content): self.try_get_lang(content) == self.language)
+        return warcs
 
     @staticmethod
     def format_item((url, content)):

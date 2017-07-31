@@ -32,7 +32,8 @@ setup(
         "readability-lxml",
         "beautifulsoup4",
         "spacy",
-        "warc"
+        "warc",
+        "pycld2"
     ],
     test_suite = __pkg_name__ + '.test'
 )
