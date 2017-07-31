@@ -38,12 +38,11 @@ class WikidataRelations(ModelBuilder, Relations):
                 if statement['mainsnak'].get('snaktype') == 'value':
                     datatype = statement['mainsnak'].get('datatype')
                     if datatype == 'wikibase-item':
-                        tid = statement['mainsnak']['datavalue']['value']['numeric-id']
-                        yield pid, int(tid)
-                    elif datatype == 'url':
-                        yield pid, statement['mainsnak']['datavalue']['value']
+                        yield pid, int(statement['mainsnak']['datavalue']['value']['numeric-id'])
                     elif datatype == 'time':
                         yield pid, statement['mainsnak']['datavalue']['value']['time']
+                    elif datatype == 'string' or datatype == 'url':
+                        yield pid, statement['mainsnak']['datavalue']['value']
 
     def build(self, corpus):
         entities = corpus\
