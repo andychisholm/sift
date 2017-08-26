@@ -81,7 +81,7 @@ class CommonCrawlArticles(ModelBuilder, Documents):
             else:
                 tag.unwrap()
 
-        return soup.encode_contents().strip()
+        return soup.encode_contents().decode('utf-8').strip()
 
     @staticmethod
     def extract_links(content):
