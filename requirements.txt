@@ -1,12 +1,14 @@
 ujson
 numpy
+scipy
 pattern
 gensim
 msgpack-python
 findspark
 jupyter
 spacy
-readability-lxml
+lxml
 beautifulsoup4
 warc
 pycld2
+dragnet

@@ -1,8 +1,8 @@
 import re
 from cStringIO import StringIO
 from warc import WARCFile
-from readability import Document
-from readability.readability import Unparseable
+from dragnet import content_extractor, BlockifyError
+from lxml import etree
 from bs4 import BeautifulSoup
 from sift.dataset import ModelBuilder, Model, Documents
 from sift import logging
@@ -65,9 +65,10 @@ class CommonCrawlArticles(ModelBuilder, Documents):
     @staticmethod
     def clean_content((url, content)):
         try:
-            doc = Document(content)
-            yield url, doc.summary()
-        except Unparseable:
+            blocks = content_extractor.analyze(content, blocks=True)
+            content = ''.join(etree.tostring(b.features['block_start_element']) for b in blocks)
+            yield url, content
+        except BlockifyError:
             pass
 
     @staticmethod

@@ -29,11 +29,12 @@ setup(
         "pattern",
         "gensim",
         "msgpack-python",
-        "readability-lxml",
         "beautifulsoup4",
         "spacy",
         "warc",
-        "pycld2"
+        "pycld2",
+        "scipy",
+        "scikit-learn"
     ],
     test_suite = __pkg_name__ + '.test'
 )
