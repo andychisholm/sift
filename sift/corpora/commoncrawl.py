@@ -62,13 +62,16 @@ class WARCCorpus(ModelBuilder, Model):
         }
 
 class CommonCrawlArticles(ModelBuilder, Documents):
+    THRESHOLD_CONTENT_SZ = 250000
+
     @staticmethod
     def clean_content((url, content)):
         try:
             blocks = content_extractor.analyze(content, blocks=True)
             content = ''.join(etree.tostring(b.features['block_start_element']) for b in blocks)
-            yield url, content
-        except BlockifyError:
+            if len(content) < CommonCrawlArticles.THRESHOLD_CONTENT_SZ:
+                yield url, content
+        except (BlockifyError, etree.SerialisationError):
             pass
 
     @staticmethod
