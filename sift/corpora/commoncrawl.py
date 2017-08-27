@@ -17,15 +17,18 @@ class WARCCorpus(ModelBuilder, Model):
 
     @staticmethod
     def parse_warc_content(buf):
-        wf = WARCFile(fileobj=StringIO(buf))
-        record = wf.read_record()
-        payload = record.payload.read()
-        top = payload[:15]
+        try:
+            wf = WARCFile(fileobj=StringIO(buf))
+            record = wf.read_record()
+            payload = record.payload.read()
+            top = payload[:15]
 
-        if top.startswith('HTTP/') and top.endswith('200 OK'):
-            content_start = payload.find('\r\n\r\n')
-            if content_start != -1:
-                yield record.url, payload[content_start+4:]
+            if top.startswith('HTTP/') and top.endswith('200 OK'):
+                content_start = payload.find('\r\n\r\n')
+                if content_start != -1:
+                    yield record.url, payload[content_start+4:]
+        except IOError:
+            pass
 
     @staticmethod
     def try_get_lang(content):
