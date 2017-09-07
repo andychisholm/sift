@@ -44,7 +44,7 @@ class WikipediaRedirects(ModelBuilder, Redirects):
             .filter(lambda page: page['redirect'] != None)\
             .map(lambda page: (page['_id'], page['redirect']))\
             .mapValues(wikicorpus.normalise_wikilink)\
-            .map(lambda (s, t): (pfx+s, pfx+t))
+            .map(lambda (s, t): (s, pfx+t))
 
         if self.resolve_transitive:
             redirects = redirects.cache()
