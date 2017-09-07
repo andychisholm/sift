@@ -38,12 +38,14 @@ class TermFrequencies(ModelBuilder, Model):
 
 class EntityMentions(ModelBuilder, Mentions):
     """ Get aggregated sentence context around links in a corpus """
-    def __init__(self, sentence_window = 1, lowercase=False):
+    def __init__(self, sentence_window = 1, lowercase=False, normalize_url=True, strict_sentences=True):
         self.sentence_window = sentence_window
         self.lowercase = lowercase
+        self.strict_sentences = strict_sentences
+        self.normalize_url = normalize_url
 
     @staticmethod
-    def iter_mentions(doc, window = 1):
+    def iter_mentions(doc, window = 1, norm_url=True, strict=True):
         sent_spans = list(iter_sent_spans(doc['text']))
         sent_offsets = [s.start for s in sent_spans]
 
@@ -61,23 +63,26 @@ class EntityMentions(ModelBuilder, Mentions):
             sent_offset = sent_spans[sent_start_idx].start
 
             span = (link['start'] - sent_offset, link['stop'] - sent_offset)
-            target = trim_link_subsection(link['target'])
-            target = trim_link_protocol(target)
+            target = link['target']
+            if norm_url:
+                target = trim_link_subsection(link['target'])
+                target = trim_link_protocol(target)
             mention = doc['text'][sent_spans[sent_start_idx].start:sent_spans[sent_end_idx].stop]
 
             # filter out instances where the mention span is the entire sentence
             if span == (0, len(mention)):
                 continue
 
-            # filter out list item sentences
-            sm = mention.strip()
-            if not sm or sm.startswith('*') or sm[-1] not in '.!?"\'':
-                continue
+            if strict:
+                # filter out list item sentences
+                sm = mention.strip()
+                if not sm or sm.startswith('*') or sm[-1] not in '.!?"\'':
+                    continue
 
             yield target, doc['_id'], mention, span
 
     def build(self, docs):
-        m = docs.flatMap(lambda d: self.iter_mentions(d, self.sentence_window))
+        m = docs.flatMap(lambda d: self.iter_mentions(d, self.sentence_window, self.normalize_url, self.strict_sentences))
         if self.lowercase:
             m = m.map(lambda (t, src, m, s): (t, src, m.lower(), s))
         return m
