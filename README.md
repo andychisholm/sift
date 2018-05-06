@@ -43,3 +43,43 @@ __sift__ uses Spark to process corpora in parallel.
 If you'd like to make use of an existing Spark cluster, ensure the `SPARK_HOME` environment variable is set.
 
 If not, that's fine. `sift` will prompt you to download and run Spark locally, utilising multiple cores on your system.
+
+## Datasets
+
+[Web KB](github.com/andychisholm/web-kb) datasets built from commoncrawl data are available under a public S3 bucket: [s3.amazonaws.com/webkb](https://s3.amazonaws.com/webkb/)
+
+- `docs-2017` is built from news articles under the [CC-NEWS](http://commoncrawl.org/2016/10/news-dataset-available/) collection from January to June 2017 ([sample](https://s3.amazonaws.com/webkb/docs-2017/part-00000))
+- `web-201707` is built from a full web crawl for [July 2017](http://commoncrawl.org/2017/07/july-2017-crawl-archive-now-available/) filted to English language pages ([sample](https://s3.amazonaws.com/webkb/web-201707/part-00000.gz))
+
+The web collection contains plain-text content, entity mentions and endpoint annotations extracted from 1.5 billion documents with and over 4 billion web links.
+Data is encoded in a simple one-JSON-blob-per-line structure.
+
+For example, the first document in the collection is an article from 2012 describing an [upcoming tour by Nicki Minaj](http://1019ampradio.cbslocal.com/2012/11/06/nicki-minaj-promises-man-bits-on-her-upcoming-tour/):
+
+```json
+{
+  "_id": "http://1019ampradio.cbslocal.com/2012/11/06/nicki-minaj-promises-man-bits-on-her-upcoming-tour/",
+  "text": "Nicki Minaj has had quite the year. Currently in the U.K. on her Reloaded Tour she sat down with London DJ Tim Westwood and her U.K. Barbz for a Q & A session. While Nicki took questions from both Westwood and her fans one answer in particular caused the room to pay attention...",
+  "links":[{
+      "start": 0,
+      "endpoint": 0.6358972797,
+      "stop": 11,
+      "target": "http://1019ampradio.cbslocal.com/tag/nicki-minaj"
+    }, {
+      "start": 145,
+      "endpoint": 0.2769776554,
+      "stop": 160,
+      "target": "http://www.youtube.com/watch?v=vnyuhDBcQo0"
+  }],
+  "mentions":[{
+      "start": 0,
+      "stop": 11,
+      "label": "PERSON"
+    }, {
+      "start": 53,
+      "stop": 57,
+      "label": "GPE"
+    },
+    // truncated
+}
+```
