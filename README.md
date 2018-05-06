@@ -51,7 +51,7 @@ If not, that's fine. `sift` will prompt you to download and run Spark locally, u
 - `docs-2017` is built from news articles under the [CC-NEWS](http://commoncrawl.org/2016/10/news-dataset-available/) collection from January to June 2017 ([sample](https://s3.amazonaws.com/webkb/docs-2017/part-00000))
 - `web-201707` is built from a full web crawl for [July 2017](http://commoncrawl.org/2017/07/july-2017-crawl-archive-now-available/) filted to English language pages ([sample](https://s3.amazonaws.com/webkb/web-201707/part-00000.gz))
 
-The web collection contains plain-text content, entity mentions and endpoint annotations extracted from 1.5 billion documents with and over 4 billion web links.
+The web collection contains plain-text content, entity mentions and endpoint annotations extracted from 1.5 billion documents with over 4 billion web links.
 Data is encoded in a simple one-JSON-blob-per-line structure.
 
 For example, the first document in the collection is an article from 2012 describing an [upcoming tour by Nicki Minaj](http://1019ampradio.cbslocal.com/2012/11/06/nicki-minaj-promises-man-bits-on-her-upcoming-tour/):
