@@ -1,5 +1,5 @@
-sift - Text modelling framework
-==================================
+sift - Knowledge extraction from web data
+================================================
 
 __sift__ is a toolkit for extracting models of entities and text from a corpus of linked documents.
 
