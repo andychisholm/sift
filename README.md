@@ -47,7 +47,7 @@ If not, that's fine. `sift` will prompt you to download and run Spark locally, u
 
 ## Datasets
 
-[Web KB](github.com/andychisholm/web-kb) datasets built from commoncrawl data are available under a public S3 bucket: [s3.amazonaws.com/webkb](https://s3.amazonaws.com/webkb/)
+[Web KB](https://github.com/andychisholm/web-kb) datasets built from commoncrawl data are available under a public S3 bucket: [s3.amazonaws.com/webkb](https://s3.amazonaws.com/webkb/)
 
 - `docs-2017` is built from news articles under the [CC-NEWS](http://commoncrawl.org/2016/10/news-dataset-available/) collection from January to June 2017 ([sample](https://s3.amazonaws.com/webkb/docs-2017/part-00000))
 - `web-201707` is built from a full web crawl for [July 2017](http://commoncrawl.org/2017/07/july-2017-crawl-archive-now-available/) filted to English language pages ([sample](https://s3.amazonaws.com/webkb/web-201707/part-00000.gz))
