@@ -12,6 +12,7 @@ Out of the box, you can:
 
 - Convert wikipedia articles into json objects without all the mediawiki cruft
 - Extract entity relations from wikidata and align them with wikipedia mentions
+- Extract plain-text content html and WARC encoded web page crawls
 - Model entity popularity, alternative names and relatedness using inlinks
 - Preprocess text documents for machine learning pipelines
 - Push output into datastores like MongoDB and Redis
